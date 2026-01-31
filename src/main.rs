@@ -25,7 +25,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
     };
 
-    youtube::download_audio_stream_from_url(parsed_url.to_string(), codec::CODEC_PREFERENCE::MP3).await?;
+    youtube::download_audio_stream_from_url(parsed_url.to_string(), codec::CODEC_PREFERENCE::MP3, String::new()).await?;
 
     Ok(())
 }
