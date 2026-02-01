@@ -3,6 +3,7 @@ use yt_dlp::client::deps::Libraries;
 use std::path::PathBuf;
 use std::process::Command;
 use crate::enums::codec::{self, CODEC_PREFERENCE};
+use tokio::fs;
 
 pub struct YoutubeDownloader {
     output_dir: PathBuf,
@@ -28,7 +29,7 @@ impl YoutubeDownloader {
     pub async fn download_audio_stream_from_url(&self, url: String) -> Result<(), Box<dyn std::error::Error>> {
         let libraries_dir: PathBuf = PathBuf::from("libs");
     
-        let output_dir: PathBuf = get_or_create_output_dir(self.output_dir.to_string_lossy().to_string()).unwrap().to_path_buf();
+        let output_dir: PathBuf = get_or_create_output_dir(self.output_dir.to_string_lossy().to_string()).await?;
     
         let youtube: PathBuf = libraries_dir.join("yt-dlp");
         let ffmpeg: PathBuf = libraries_dir.join("ffmpeg");
@@ -72,7 +73,7 @@ impl YoutubeDownloader {
             return Err(format!("Conversion en {} échouée : {}", codec_str, status).into());
         }
     
-        std::fs::remove_file(input_file)?;
+        fs::remove_file(input_file).await?;
         }
     
         Ok(())
@@ -80,7 +81,7 @@ impl YoutubeDownloader {
 }
 
 
-fn get_or_create_output_dir(mut path: String) -> Result<PathBuf, Box<dyn std::error::Error>> {
+async fn get_or_create_output_dir(mut path: String) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let user_home = match dirs::home_dir() {
         Some(path_home) => path_home,
         None => {
@@ -95,7 +96,7 @@ fn get_or_create_output_dir(mut path: String) -> Result<PathBuf, Box<dyn std::er
     }
     let output_dir = PathBuf::from(path);
     if !output_dir.exists() {
-        std::fs::create_dir_all(user_home.join(&output_dir))?;
+        fs::create_dir_all(user_home.join(&output_dir)).await?;
     }
     Ok(user_home.join(&output_dir))
 }
