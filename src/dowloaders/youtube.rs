@@ -1,7 +1,7 @@
 use yt_dlp::{Youtube};
 use yt_dlp::client::deps::Libraries;
 use std::path::PathBuf;
-use std::process::Command;
+use tokio::process::Command;
 use crate::enums::codec::{self, CODEC_PREFERENCE};
 use tokio::fs;
 use tokio::sync::Semaphore;
@@ -31,6 +31,8 @@ impl YoutubeDownloader {
     }
     
     pub async fn download_audio_stream_from_url(&self, url: &String) -> Result<(), Box<dyn std::error::Error>> {
+        let _permit = self.semaphore.acquire().await?;
+
         let libraries_dir: PathBuf = PathBuf::from("libs");
     
         let output_dir: PathBuf = get_or_create_output_dir(self.output_dir.to_string_lossy().to_string()).await?;
@@ -50,7 +52,7 @@ impl YoutubeDownloader {
     
         let codec_str = codec::get_codec_extension(&self.codec_preference);
     
-        if check_if_music_already_exists(&video_infos.title, &fetcher.output_dir, &codec_str) {
+        if check_if_music_already_exists(&video_infos.title, &fetcher.output_dir, &codec_str).await {
             println!("Le fichier {} existe déjà dans le répertoire de sortie. Téléchargement ignoré.", &video_infos.title);
             return Ok(());
         }
@@ -71,7 +73,8 @@ impl YoutubeDownloader {
             .arg("-compression_level")
             .arg("5")
             .arg(&output_file)
-            .status()?;
+            .status()
+            .await?;
     
         if !status.success() {
             return Err(format!("Conversion en {} échouée : {}", codec_str, status).into());
@@ -94,20 +97,19 @@ async fn get_or_create_output_dir(mut path: String) -> Result<PathBuf, Box<dyn s
         }
     };
 
-    println!("User home directory: {:?}", &user_home);
     if path.is_empty() {
         path = String::from("MusicDL");
     }
-    let output_dir = PathBuf::from(path);
+
+    let output_dir = user_home.join(&path);
     if !output_dir.exists() {
-        fs::create_dir_all(user_home.join(&output_dir)).await?;
+        fs::create_dir_all(&output_dir).await?;
     }
-    Ok(user_home.join(&output_dir))
+
+    Ok(output_dir)
 }
 
-fn check_if_music_already_exists(title: &str, output_dir: &PathBuf, codec: &str) -> bool {
-    if output_dir.join(format!("{}.{}", title, codec)).exists() {
-        return true;
-    }
-    false
+async fn check_if_music_already_exists(title: &str, output_dir: &PathBuf, codec: &str) -> bool {
+    let path = output_dir.join(format!("{}.{}", title, codec));
+    fs::metadata(&path).await.is_ok()
 }

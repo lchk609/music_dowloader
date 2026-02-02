@@ -29,7 +29,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if url == "exit" {
             break;
         }
-        let youtube_downloader = youtube_downloader.clone();
+        let youtube_downloader: Arc<YoutubeDownloader> = Arc::clone(&youtube_downloader);
         tokio::spawn(async move {
             match youtube_downloader.download_audio_stream_from_url(&url).await {
                 Ok(_) => println!("Téléchargement terminé : {}", url),
