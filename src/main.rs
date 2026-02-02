@@ -1,4 +1,5 @@
 use std::io::{self, BufRead};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use dowloaders::youtube::{YoutubeDownloader};
 
@@ -7,7 +8,7 @@ mod enums;
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let youtube_downloader: YoutubeDownloader = YoutubeDownloader::new(std::path::PathBuf::new(), enums::codec::CODEC_PREFERENCE::MP3);
+    let youtube_downloader: Arc<YoutubeDownloader> = Arc::new(YoutubeDownloader::new(std::path::PathBuf::new(), enums::codec::CODEC_PREFERENCE::MP3, 3));
     youtube_downloader.dowload_tools().await?;
 
     let (tx, mut rx) = mpsc::channel::<String>(32);
@@ -28,10 +29,13 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if url == "exit" {
             break;
         }
-        match youtube_downloader.download_audio_stream_from_url(url).await {
-            Ok(_) => println!("Téléchargement terminé avec succès !"),
-            Err(e) => eprintln!("Erreur : {}", e),
-        }
+        let youtube_downloader = youtube_downloader.clone();
+        tokio::spawn(async move {
+            match youtube_downloader.download_audio_stream_from_url(&url).await {
+                Ok(_) => println!("Téléchargement terminé : {}", url),
+                Err(e) => eprintln!("Erreur pour {} : {}", url, e),
+            }
+        });
     }
 
     let _ = input_task.await?;

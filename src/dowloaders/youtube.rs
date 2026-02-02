@@ -4,17 +4,21 @@ use std::path::PathBuf;
 use std::process::Command;
 use crate::enums::codec::{self, CODEC_PREFERENCE};
 use tokio::fs;
+use tokio::sync::Semaphore;
+use std::sync::Arc;
 
 pub struct YoutubeDownloader {
     output_dir: PathBuf,
     codec_preference: CODEC_PREFERENCE,
+    semaphore: Arc<Semaphore>,
 }
 
 impl YoutubeDownloader {
-    pub fn new(output_dir: PathBuf, codec_preference: CODEC_PREFERENCE) -> Self {
-        YoutubeDownloader {
+    pub fn new(output_dir: PathBuf, codec_preference: CODEC_PREFERENCE, max_concurrent: usize) -> Self {
+        Self {
             output_dir,
             codec_preference,
+            semaphore: Arc::new(Semaphore::new(max_concurrent)),
         }
     }
 
@@ -26,7 +30,7 @@ impl YoutubeDownloader {
         Ok(())
     }
     
-    pub async fn download_audio_stream_from_url(&self, url: String) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn download_audio_stream_from_url(&self, url: &String) -> Result<(), Box<dyn std::error::Error>> {
         let libraries_dir: PathBuf = PathBuf::from("libs");
     
         let output_dir: PathBuf = get_or_create_output_dir(self.output_dir.to_string_lossy().to_string()).await?;
@@ -40,7 +44,7 @@ impl YoutubeDownloader {
         let fetcher = Youtube::new(libraries, output_dir).await?;
     
     
-        let video_infos: yt_dlp::prelude::Video = fetcher.fetch_video_infos(url).await?;
+        let video_infos: yt_dlp::prelude::Video = fetcher.fetch_video_infos(url.clone()).await?;
     
         let video_title = format!("{}.m4a", video_infos.title);
     
