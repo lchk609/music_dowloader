@@ -1,0 +1,67 @@
+import { VerticalBox, HorizontalBox, ScrollView, Button, LineEdit } from "std-widgets.slint";
+import { SongItem, Song } from "components/song-item.slint";
+import { Sidebar } from "components/side-bar.slint";
+
+export component App inherits Window {
+    width: 1000px;
+    height: 650px;
+    title: "Playlist Downloader";
+
+    callback download_clicked();
+
+    property <[string]> playlists: ["playlist 1", "playlist 2"];
+    in-out property <[Song]> songs;
+
+    HorizontalBox {
+        spacing: 20px;
+        padding: 20px;
+
+        Sidebar {
+            playlists: root.playlists;
+            playlist_selected => {
+                // Handle playlist selection in Rust if needed
+                // debug("Selected: " + playlist_selected);
+            }
+        }
+
+        VerticalBox {
+            spacing: 20px;
+
+            // URL row
+            HorizontalBox {
+                spacing: 10px;
+
+                LineEdit {
+                    placeholder-text: "paste the url";
+                    horizontal-stretch: 1;
+                    height: 40px;
+                }
+
+                Button {
+                    text: "download";
+                    width: 120px;
+                    height: 40px;
+                    
+                    clicked => {
+                        root.download_clicked();
+                    }
+                }
+            }
+
+            // Song list
+            ScrollView {
+                vertical-stretch: 1;
+
+                VerticalBox {
+                    spacing: 15px;
+                    padding: 5px;
+
+                    for song in root.songs : SongItem {
+                        title: song.title;
+                        downloading: song.downloading;
+                    }
+                }
+            }
+        }
+    }
+}

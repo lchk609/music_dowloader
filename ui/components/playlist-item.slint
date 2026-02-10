@@ -1,0 +1,19 @@
+export component PlaylistItem inherits Rectangle {
+    in property <string> title;
+    callback clicked;
+
+    height: 40px;
+    border-width: 2px;
+    border-color: #444;
+    border-radius: 12px;
+
+    Text {
+        text: title;
+        vertical-alignment: center;
+        horizontal-alignment: center;
+    }
+
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+}

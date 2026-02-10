@@ -1,0 +1,35 @@
+import { VerticalBox, Button } from "std-widgets.slint";
+import { PlaylistItem } from "playlist-item.slint";
+export component Sidebar inherits Rectangle {
+    in property <[string]> playlists;
+    callback playlist_selected(string);
+
+    width: 220px;
+    border-width: 2px;
+    border-color: #444;
+    border-radius: 20px;
+
+    VerticalBox {
+        padding: 16px;
+        spacing: 16px;
+
+        Text {
+            text: "tracked playlists";
+            font-size: 18px;
+        }
+
+        for playlist in playlists : PlaylistItem {
+            title: playlist;
+            clicked => {
+                root.playlist_selected(playlist);
+            }
+        }
+
+        Rectangle { height: 100%; }
+
+        Button {
+            text: "settings";
+            height: 40px;
+        }
+    }
+}
