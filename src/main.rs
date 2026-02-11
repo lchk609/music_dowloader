@@ -75,31 +75,47 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     app.set_songs(ModelRc::new(VecModel::from(songs_model)));
 
-    app.on_download_clicked(async move |url: SharedString| {
-        let url = url.to_string();
-        let youtube_downloader: Arc<YoutubeDownloader> = Arc::clone(&youtube_downloader);
+    app.on_download_clicked({
+        let youtube_downloader = Arc::clone(&youtube_downloader);
+        let app_handle = app_handle.clone();
+        move |url: SharedString| {
+            let url = url.to_string();
+            let youtube_downloader = Arc::clone(&youtube_downloader);
+            let app_handle = app_handle.clone();
 
-        tokio::spawn(async move {
-            match youtube_downloader.download_audio_stream_from_url(&url).await {
-                Ok(_) => println!("Téléchargement terminé : {}", url),
-                Err(e) => eprintln!("Erreur pour {} : {}", url, e),
-            }
-        });
+            tokio::spawn(async move {
+                let youtube_downloader = Arc::clone(&youtube_downloader);
+                let video_info = match youtube_downloader
+                    .get_videos_infos(&url).await {
+                        Ok(info) => info,
+                        Err(e) => {
+                            eprintln!("Erreur infos : {}", e);
+                            return;
+                        }
+                    };
 
-        let app: App = app_handle.unwrap();
+                slint::invoke_from_event_loop(move || {
+                    if let Some(app) = app_handle.upgrade() {
+                        let mut songs: Vec<Song> = app.get_songs().iter().collect();
 
-        let mut songs: Vec<Song> = app.get_songs().iter().collect();
-        match youtube_downloader.get_videos_infos(&url).await {
-            Ok(song_info) => {
-                songs.push(Song {
-                    title: SharedString::from(song_info.title),
-                    downloading: true,
-                });
-            }
-            Err(e) => eprintln!("Erreur lors de la récupération des informations de la vidéo : {}", e),
+                        songs.push(Song {
+                            title: SharedString::from(video_info.title),
+                            downloading: true,
+                        });
+
+                        app.set_songs(ModelRc::new(VecModel::from(songs)));
+                    }
+                }).unwrap();
+
+                let youtube_downloader = Arc::clone(&youtube_downloader);
+                if let Err(e) = youtube_downloader
+                    .download_audio_stream_from_url(&url)
+                    .await
+                {
+                    eprintln!("Erreur download : {}", e);
+                }
+            });
         }
-
-        app.set_songs(ModelRc::new(VecModel::from(songs)));
     });
 
     app.run().unwrap();
