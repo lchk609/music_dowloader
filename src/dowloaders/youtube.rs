@@ -11,14 +11,28 @@ pub struct YoutubeDownloader {
     output_dir: PathBuf,
     codec_preference: CODEC_PREFERENCE,
     semaphore: Arc<Semaphore>,
+    libraries: Arc<Libraries>,
 }
 
-impl YoutubeDownloader {
+pub struct VideoInfo {
+    pub title: String,
+    pub url: String,
+}
+
+impl YoutubeDownloader {    
     pub fn new(output_dir: PathBuf, codec_preference: CODEC_PREFERENCE, max_concurrent: usize) -> Self {
+
+        let libraries_dir = PathBuf::from("libs");
+
+        let youtube = libraries_dir.join("yt-dlp");
+        let ffmpeg = libraries_dir.join("ffmpeg");
+
+        let libraries = Libraries::new(youtube, ffmpeg);
         Self {
             output_dir,
             codec_preference,
             semaphore: Arc::new(Semaphore::new(max_concurrent)),
+            libraries: Arc::new(libraries),
         }
     }
 
@@ -32,18 +46,10 @@ impl YoutubeDownloader {
     
     pub async fn download_audio_stream_from_url(&self, url: &String) -> Result<(), Box<dyn std::error::Error>> {
         let _permit = self.semaphore.acquire().await?;
-
-        let libraries_dir: PathBuf = PathBuf::from("libs");
     
         let output_dir: PathBuf = get_or_create_output_dir(self.output_dir.to_string_lossy().to_string()).await?;
-    
-        let youtube: PathBuf = libraries_dir.join("yt-dlp");
-        let ffmpeg: PathBuf = libraries_dir.join("ffmpeg");
-    
-        println!("Output directory: {}", &output_dir.display());
-    
-        let libraries = Libraries::new(youtube, ffmpeg);
-        let fetcher = Youtube::new(libraries, output_dir).await?;
+            
+        let fetcher = Youtube::new((*self.libraries).clone(), output_dir).await?;
     
     
         let video_infos: yt_dlp::prelude::Video = fetcher.fetch_video_infos(url.clone()).await?;
@@ -84,6 +90,20 @@ impl YoutubeDownloader {
         }
     
         Ok(())
+    }
+
+    pub async fn get_videos_infos(&self, url: &String) -> Result<VideoInfo, Box<dyn std::error::Error>> {
+        let output_dir: PathBuf = get_or_create_output_dir(self.output_dir.to_string_lossy().to_string()).await?;
+
+        let fetcher: Youtube = Youtube::new((*self.libraries).clone(), output_dir).await?;
+    
+    
+        let video_infos: yt_dlp::prelude::Video = fetcher.fetch_video_infos(url.clone()).await?;
+    
+        Ok(VideoInfo {
+            title: video_infos.title,
+            url: url.clone(),
+        })
     }
 }
 

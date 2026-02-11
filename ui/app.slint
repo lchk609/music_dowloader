@@ -7,10 +7,11 @@ export component App inherits Window {
     height: 650px;
     title: "Playlist Downloader";
 
-    callback download_clicked();
+    callback download_clicked(string);
 
+    in-out property <string> url: "";
     property <[string]> playlists: ["playlist 1", "playlist 2"];
-    in-out property <[Song]> songs;
+    in-out property <[Song]> songs: [];
 
     HorizontalBox {
         spacing: 20px;
@@ -35,6 +36,9 @@ export component App inherits Window {
                     placeholder-text: "paste the url";
                     horizontal-stretch: 1;
                     height: 40px;
+
+                    text: root.url;
+                    edited(value) => { root.url = value; }
                 }
 
                 Button {
@@ -43,7 +47,7 @@ export component App inherits Window {
                     height: 40px;
                     
                     clicked => {
-                        root.download_clicked();
+                        root.download_clicked(root.url);
                     }
                 }
             }

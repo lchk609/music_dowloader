@@ -1,14 +1,11 @@
 use std::io::{self, BufRead};
 use std::sync::Arc;
-use slint::{ModelRc, VecModel};
+use slint::{Model, ModelRc, VecModel, SharedString};
 use tokio::sync::mpsc;
-use dowloaders::youtube::{YoutubeDownloader};
-
-use crate::models::Song;
+use dowloaders::youtube::{YoutubeDownloader, VideoInfo};
 
 mod dowloaders;
 mod enums;
-mod models;
 
 slint::include_modules!();
 
@@ -61,21 +58,51 @@ slint::include_modules!();
 //     Ok(url.trim().to_string())
 // }
 
-fn main() {
+#[tokio::main]
+pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let youtube_downloader: Arc<YoutubeDownloader> = Arc::new(YoutubeDownloader::new(std::path::PathBuf::new(), enums::codec::CODEC_PREFERENCE::MP3, 3));
+    youtube_downloader.dowload_tools().await?;
     let app = App::new().unwrap();
+    let app_handle = app.as_weak();
 
     // Create a dynamic model
-    let songs_model = Song {
-        title: "title".into(),
-        downloading: true
-    };
+    let songs_model: Vec<Song> = vec![
+        Song {
+            title: "title".into(),
+            downloading: true,
+        },
+    ];
 
-    app.set_songs(ModelRc::from(songs_model.clone()));
+    app.set_songs(ModelRc::new(VecModel::from(songs_model)));
 
-    // When download button is clicked
-    app.on_download_clicked(move || {
-        songs_model.push(songs_model);
+    app.on_download_clicked(async move |url: SharedString| {
+        let url = url.to_string();
+        let youtube_downloader: Arc<YoutubeDownloader> = Arc::clone(&youtube_downloader);
+
+        tokio::spawn(async move {
+            match youtube_downloader.download_audio_stream_from_url(&url).await {
+                Ok(_) => println!("Téléchargement terminé : {}", url),
+                Err(e) => eprintln!("Erreur pour {} : {}", url, e),
+            }
+        });
+
+        let app: App = app_handle.unwrap();
+
+        let mut songs: Vec<Song> = app.get_songs().iter().collect();
+        match youtube_downloader.get_videos_infos(&url).await {
+            Ok(song_info) => {
+                songs.push(Song {
+                    title: SharedString::from(song_info.title),
+                    downloading: true,
+                });
+            }
+            Err(e) => eprintln!("Erreur lors de la récupération des informations de la vidéo : {}", e),
+        }
+
+        app.set_songs(ModelRc::new(VecModel::from(songs)));
     });
 
     app.run().unwrap();
+
+    Ok(())
 }
