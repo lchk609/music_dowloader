@@ -62,7 +62,9 @@ export component App inherits Window {
 
                     for song in root.songs : SongItem {
                         title: song.title;
-                        downloading: song.downloading;
+                        download-id: song.download-id;
+                        total: song.total;
+                        download-progress: song.download-progress;
                     }
                 }
             }

@@ -2,12 +2,16 @@ import { HorizontalBox } from "std-widgets.slint";
 
 export struct Song {
     title: string,
-    downloading: bool,
+    download-id: int,
+    total: int,
+    download-progress: int,
 }
 
 export component SongItem inherits Rectangle {
     in property <string> title;
-    in property <bool> downloading;
+    in property <int> download-id;
+    in property <int> total;
+    in property <int> download-progress;
     callback download_clicked;
 
     height: 90px;
@@ -51,13 +55,15 @@ export component SongItem inherits Rectangle {
             border-color: #444;
 
             Text {
-                text: downloading ? "…" : "";
+                text: download-progress;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
 
             TouchArea {
-                clicked => { root.download_clicked(); }
+                clicked => {
+                    root.download_clicked();
+                }
             }
         }
     }
