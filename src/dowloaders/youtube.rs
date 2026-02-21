@@ -6,6 +6,7 @@ use tokio::process::Command;
 use tokio::sync::Semaphore;
 use yt_dlp::Youtube;
 use yt_dlp::client::deps::Libraries;
+use directories;
 
 pub struct YoutubeDownloader {
     output_dir: PathBuf,
@@ -62,7 +63,7 @@ impl YoutubeDownloader {
 
         let video_title = format!("{}.m4a", video_infos.title);
 
-        let codec_str = codec::get_codec_extension(&self.codec_preference);
+        let codec_str = &self.codec_preference.to_string();
 
         if check_if_music_already_exists(&video_infos.title, &fetcher.output_dir, &codec_str).await
         {
@@ -132,9 +133,13 @@ impl YoutubeDownloader {
         let output_dir: PathBuf =
             get_or_create_output_dir(self.output_dir.to_string_lossy().to_string()).await?;
         let fetcher = Youtube::new((*self.libraries).clone(), output_dir).await?;
+
         let video_infos: yt_dlp::prelude::Video = fetcher.fetch_video_infos(url.clone()).await?;
-        let video_title = format!("{}.m4a", video_infos.title);
-        let codec_str = codec::get_codec_extension(&self.codec_preference);
+        
+        let video_title = format!("{}.mp4", video_infos.title);
+        
+        let codec_str = &self.codec_preference.to_string();
+        
         if check_if_music_already_exists(&video_infos.title, &fetcher.output_dir, &codec_str).await
         {
             println!(
@@ -143,39 +148,56 @@ impl YoutubeDownloader {
             );
             return Ok(0);
         }
+        
         println!("Downloading audio for video: {}", &video_title);
-        let dowload_id = fetcher
+        
+        let download_id = fetcher
             .download_video_with_progress(&video_infos, &video_title, callback)
             .await?;
 
-        if self.codec_preference != CODEC_PREFERENCE::AAC {
-            let input_file = fetcher.output_dir.join(&video_title);
-            let output_file = fetcher
-                .output_dir
-                .join(format!("{}.{}", video_infos.title, codec_str));
-            let status: std::process::ExitStatus = Command::new(fetcher.libraries.ffmpeg)
-                .arg("-i")
-                .arg(&input_file)
-                .arg("-c:a")
-                .arg(codec_str)
-                .arg("-compression_level")
-                .arg("5")
-                .arg(&output_file)
-                .status()
-                .await?;
-            if !status.success() {
-                return Err(format!("Conversion en {} échouée : {}", codec_str, status).into());
-            }
-            fs::remove_file(input_file).await?;
-        }
+        fetcher.wait_for_download(download_id).await;
+
+        self.transform_video_to_audio(&video_infos.title).await?;
         
-        Ok(dowload_id)
+        Ok(download_id)
+    }
+
+    pub async fn transform_video_to_audio(
+        &self,
+        video_title: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let output_dir: PathBuf =
+            get_or_create_output_dir(self.output_dir.to_string_lossy().to_string()).await?;
+        
+        let codec_str = &self.codec_preference.to_string();
+        let video_path = output_dir.join(format!("{}.mp4", video_title));
+        println!("Converting video to audio for: {}", video_path.display());
+        let output_path = output_dir.join(format!("{}.{}", video_title, codec_str));
+        println!("Output path for audio: {}", output_path.display());
+        let status: std::process::ExitStatus = Command::new(&self.libraries.ffmpeg)
+            .arg("-i")
+            .arg(&video_path)
+            .arg("-c:a")
+            .arg(codec_str)
+            .arg("-compression_level")
+            .arg("5")
+            .arg(output_path)
+            .status()
+            .await?;
+
+        if !status.success() {
+            return Err(format!("Conversion en {} échouée : {}", codec_str, status).into());
+        }
+
+        fs::remove_file(video_path).await?;
+
+        Ok(())
     }
 }
 
-async fn get_or_create_output_dir(mut path: String) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let user_home = match dirs::home_dir() {
-        Some(path_home) => path_home,
+async fn get_or_create_output_dir(mut path: String) -> Result<PathBuf, Box<dyn std::error::Error>> {    
+    let user_home: PathBuf = match directories::UserDirs::new() {
+        Some(path_home) => path_home.home_dir().to_path_buf(),
         None => {
             eprintln!("Impossible de trouver le répertoire utilisateur.");
             return Err("Impossible de trouver le répertoire utilisateur.".into());

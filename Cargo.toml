@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-dirs = "6.0.0"
+directories = "6.0.0"
+serde = "1.0.228"
+serde_json = "1.0.149"
 slint = "1.15.0"
 tokio = "1.49.0"
 yt-dlp = "1.4.7"
