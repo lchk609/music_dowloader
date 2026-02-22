@@ -1,14 +1,14 @@
 import { HorizontalBox } from "std-widgets.slint";
+import { CircularProgressIndicator } from "../../material/index.slint";
 
 export struct Song {
     title: string,
+    is_downloading: bool,
 }
 
 export component SongItem inherits Rectangle {
     in property <string> title;
-    in property <int> download-id;
-    in property <int> total;
-    in property <int> download-progress;
+    in property <bool> is_downloading: false;
     callback download_clicked;
 
     height: 90px;
@@ -48,13 +48,10 @@ export component SongItem inherits Rectangle {
             width: 40px;
             height: 40px;
             border-radius: 20px;
-            border-width: 2px;
-            border-color: #444;
 
-            Text {
-                text: download-progress + "%";
-                horizontal-alignment: center;
-                vertical-alignment: center;
+            CircularProgressIndicator {
+                indeterminate: root.is_downloading;
+                visible: root.is_downloading;
             }
 
             TouchArea {

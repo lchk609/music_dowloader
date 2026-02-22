@@ -44,6 +44,7 @@ async fn load_music_on_opening(
 
     songs.extend(song_files.into_iter().map(|music_file| Song {
         title: SharedString::from(music_file.title),
+        is_downloading: false,
     }));
 
     app.set_songs(ModelRc::new(VecModel::from(songs)));

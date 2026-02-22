@@ -1,6 +1,7 @@
 import { VerticalBox, HorizontalBox, ScrollView, Button, LineEdit } from "std-widgets.slint";
 import { SongItem, Song } from "components/song-item.slint";
 import { Sidebar } from "components/side-bar.slint";
+import { ElevatedButton } from "../material/index.slint";
 
 export component App inherits Window {
     width: 1000px;
@@ -41,7 +42,7 @@ export component App inherits Window {
                     edited(value) => { root.url = value; }
                 }
 
-                Button {
+                ElevatedButton {
                     text: "download";
                     width: 120px;
                     height: 40px;
@@ -62,6 +63,7 @@ export component App inherits Window {
 
                     for song in root.songs : SongItem {
                         title: song.title;
+                        is_downloading: song.is_downloading;
                     }
                 }
             }
