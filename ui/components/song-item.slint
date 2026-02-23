@@ -1,5 +1,4 @@
-import { HorizontalBox } from "std-widgets.slint";
-import { CircularProgressIndicator } from "../../material/index.slint";
+import { HorizontalBox, Spinner } from "std-widgets.slint";
 
 export struct Song {
     title: string,
@@ -20,22 +19,6 @@ export component SongItem inherits Rectangle {
         spacing: 20px;
         padding: 15px;
 
-        // Image placeholder
-        Rectangle {
-            width: 60px;
-            height: 60px;
-            border-width: 2px;
-            border-color: #444;
-            border-radius: 12px;
-
-            Text {
-                text: "image";
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
-
-        // Song title
         Text {
             text: title;
             vertical-alignment: center;
@@ -43,13 +26,12 @@ export component SongItem inherits Rectangle {
             horizontal-stretch: 1;
         }
 
-        // Download indicator button
         Rectangle {
             width: 40px;
             height: 40px;
             border-radius: 20px;
 
-            CircularProgressIndicator {
+            Spinner {
                 indeterminate: root.is_downloading;
                 visible: root.is_downloading;
             }

@@ -1,12 +1,11 @@
 import { VerticalBox, HorizontalBox, ScrollView, Button, LineEdit } from "std-widgets.slint";
 import { SongItem, Song } from "components/song-item.slint";
 import { Sidebar } from "components/side-bar.slint";
-import { ElevatedButton } from "../material/index.slint";
 
 export component App inherits Window {
-    width: 1000px;
-    height: 650px;
-    title: "Playlist Downloader";
+    min-width: 1000px;
+    min-height: 650px;
+    title: "Music Downloader";
 
     callback download_clicked(string);
 
@@ -29,22 +28,23 @@ export component App inherits Window {
         VerticalBox {
             spacing: 20px;
 
-            // URL row
             HorizontalBox {
                 spacing: 10px;
 
                 LineEdit {
                     placeholder-text: "paste the url";
                     horizontal-stretch: 1;
+                    input-type: InputType.text;
                     height: 40px;
-
-                    text: root.url;
+                    
+                    // text: root.url;
                     edited(value) => { root.url = value; }
                 }
 
-                ElevatedButton {
+                Button {
                     text: "download";
                     width: 120px;
+                    accessible-role: AccessibleRole.none;
                     height: 40px;
                     
                     clicked => {
@@ -53,7 +53,6 @@ export component App inherits Window {
                 }
             }
 
-            // Song list
             ScrollView {
                 vertical-stretch: 1;
 
