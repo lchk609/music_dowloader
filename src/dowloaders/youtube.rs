@@ -1,4 +1,4 @@
-use crate::enums::codec::CODEC_PREFERENCE;
+use crate::enums::codec::CodecPreference;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
@@ -9,7 +9,7 @@ use yt_dlp::client::deps::Libraries;
 
 pub struct YoutubeDownloader {
     output_dir: PathBuf,
-    codec_preference: CODEC_PREFERENCE,
+    codec_preference: CodecPreference,
     semaphore: Arc<Semaphore>,
     libraries: Arc<Libraries>,
 }
@@ -17,7 +17,7 @@ pub struct YoutubeDownloader {
 impl YoutubeDownloader {
     pub fn new(
         output_dir: PathBuf,
-        codec_preference: CODEC_PREFERENCE,
+        codec_preference: CodecPreference,
         max_concurrent: usize,
     ) -> Self {
         let libraries_dir = PathBuf::from("libs");

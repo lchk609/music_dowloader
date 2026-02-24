@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum CODEC_PREFERENCE {
+pub enum CodecPreference {
     FLAC,
     #[default]
     MP3,
@@ -9,13 +9,13 @@ pub enum CODEC_PREFERENCE {
     WAV,
 }
 
-impl ToString for CODEC_PREFERENCE {
+impl ToString for CodecPreference {
     fn to_string(&self) -> String {
         match self {
-            CODEC_PREFERENCE::FLAC => "flac".to_string(),
-            CODEC_PREFERENCE::MP3 => "mp3".to_string(),
-            CODEC_PREFERENCE::AAC => "aac".to_string(),
-            CODEC_PREFERENCE::WAV => "wav".to_string(),
+            CodecPreference::FLAC => "flac".to_string(),
+            CodecPreference::MP3 => "mp3".to_string(),
+            CodecPreference::AAC => "aac".to_string(),
+            CodecPreference::WAV => "wav".to_string(),
         }
     }
 }

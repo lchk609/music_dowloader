@@ -90,7 +90,7 @@ pub async fn setup_dowloader() -> Result<YoutubeDownloader, Box<dyn std::error::
     get_or_create_output_dir(output_dir.to_string_lossy().to_string(), config).await?;
 
     let youtube_downloader: YoutubeDownloader =
-        YoutubeDownloader::new(output_dir, crate::enums::codec::CODEC_PREFERENCE::MP3, 3);
+        YoutubeDownloader::new(output_dir, crate::enums::codec::CodecPreference::MP3, 3);
     youtube_downloader.dowload_tools().await?;
     Ok(youtube_downloader)
 }

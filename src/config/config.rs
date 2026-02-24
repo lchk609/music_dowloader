@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use tokio::fs;
 use directories::ProjectDirs;
 
-use crate::enums::codec::CODEC_PREFERENCE;
+use crate::enums::codec::CodecPreference;
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct Config {
@@ -12,7 +12,7 @@ pub struct Config {
     pub playlists: HashMap<String, String>,
     // key = playlist id
     // value = playlist name
-    pub codec: CODEC_PREFERENCE,
+    pub codec: CodecPreference,
 }
 
 fn config_path() -> std::path::PathBuf {
