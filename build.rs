@@ -1,5 +1,3 @@
-use slint_build;
-
 fn main() {
-    slint_build::compile("ui/main.slint").unwrap();
+    slint_build::compile("ui/app.slint").expect("Slint build failed");
 }
