@@ -9,12 +9,17 @@ export component App inherits Window {
     title: "Music Downloader";
 
     callback download_clicked(string);
+    callback add_playlist(string, string);
 
     in-out property <string> url: "";
     in-out property <[string]> playlists: [];
     in-out property <[Song]> songs: [];
 
-    add-playlist-popup := AddPlaylist {}
+    add-playlist-popup := AddPlaylist {
+        add_playlist(name, url) => {
+            root.add_playlist(name, url);
+        }
+    }
 
     HorizontalBox {
         spacing: 20px;

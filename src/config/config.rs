@@ -6,7 +6,7 @@ use directories::ProjectDirs;
 
 use crate::enums::codec::CodecPreference;
 
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Debug, Deserialize, Default, Clone)]
 pub struct Config {
     pub saved_directory: Option<PathBuf>,
     pub playlists: HashMap<String, String>,
@@ -35,6 +35,11 @@ impl Config {
     pub async fn load() -> Result<Self, Box<dyn std::error::Error>> {
         let path = config_path().await?;
         load_config(&path).await
+    }
+
+    pub async fn update_playlist(&mut self, playlist_id: String, playlist_name: String) -> Result<(), Box<dyn std::error::Error>> {
+        self.playlists.insert(playlist_id, playlist_name);
+        self.save().await
     }
 }
 

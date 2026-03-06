@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug,PartialEq, Eq, Serialize, Deserialize, Clone, Default)]
 pub enum CodecPreference {
     FLAC,
     #[default]
