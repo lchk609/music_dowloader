@@ -6,7 +6,7 @@ use directories::ProjectDirs;
 
 use crate::enums::codec::CodecPreference;
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Config {
     pub saved_directory: Option<PathBuf>,
     pub playlists: HashMap<String, String>,
@@ -15,30 +15,30 @@ pub struct Config {
     pub codec: CodecPreference,
 }
 
-fn config_path() -> std::path::PathBuf {
-    let proj = ProjectDirs::from("", "", "RustPlaylistApp")
+async fn config_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let proj = ProjectDirs::from("", "", "MusicDownloader")
         .expect("Could not determine config directory");
 
     let dir = proj.config_dir();
-    std::fs::create_dir_all(dir).expect("Failed to create config directory");
+    fs::create_dir_all(dir).await?;
 
-    dir.join("config.json")
+    Ok(dir.join("config.json"))
 }
 
 impl Config {
     pub async fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let path = config_path();
+        let path = config_path().await?;
         save_config(self, &path).await
     }
 
     pub async fn load() -> Result<Self, Box<dyn std::error::Error>> {
-        let path = config_path();
+        let path = config_path().await?;
         load_config(&path).await
     }
 }
 
 async fn save_config(config: &Config, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-    let json = serde_json::to_string_pretty(config).unwrap();
+    let json: String = serde_json::to_string_pretty(config).unwrap();
     fs::write(path, json)
         .await
         .map_err(|e| format!("Failed to save config: {}", e).into())

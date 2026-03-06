@@ -2,7 +2,7 @@ use crate::config::config::Config;
 use crate::dowloaders::youtube::YoutubeDownloader;
 use crate::ui::components::download_button;
 use crate::{App, Song};
-use slint::Model;
+use slint::{ComponentHandle, Model};
 use slint::{ModelRc, SharedString, VecModel};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -31,7 +31,11 @@ async fn load_music_on_opening(
                         .unwrap_or_default()
                         .to_string_lossy()
                         .to_string();
-                    let date_added = entry.metadata().await?.created().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                    let date_added = entry
+                        .metadata()
+                        .await?
+                        .created()
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
                     song_files.push(MusicFile { title, date_added });
                 }
             }
@@ -45,6 +49,7 @@ async fn load_music_on_opening(
     songs.extend(song_files.into_iter().map(|music_file| Song {
         title: SharedString::from(music_file.title),
         is_downloading: false,
+        download_id: SharedString::from(String::new()),
     }));
 
     app.set_songs(ModelRc::new(VecModel::from(songs)));
@@ -56,7 +61,8 @@ async fn setup_event_listiners(
     app: &App,
     youtube_downloader: Arc<YoutubeDownloader>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    download_button::manage_add_music(app, youtube_downloader).await;
+    let download_button = download_button::DownloadButton::new(app, youtube_downloader.clone());
+    download_button.manage_add_music().await;
     Ok(())
 }
 
@@ -74,6 +80,7 @@ pub async fn setup_gui(
     get_or_create_output_dir(music_path.to_string_lossy().to_string(), config).await?;
 
     load_music_on_opening(app, music_path).await?;
+    // youtube_downloader.download_hook_subscriber().await?;
     setup_event_listiners(app, youtube_downloader).await?;
 
     Ok(())
@@ -87,11 +94,10 @@ pub async fn setup_dowloader() -> Result<YoutubeDownloader, Box<dyn std::error::
         None => PathBuf::new(),
     };
 
-    get_or_create_output_dir(output_dir.to_string_lossy().to_string(), config).await?;
+    get_or_create_output_dir(output_dir.to_string_lossy().to_string(), config.clone()).await?;
 
-    let youtube_downloader: YoutubeDownloader =
-        YoutubeDownloader::new(output_dir, crate::enums::codec::CodecPreference::MP3, 3);
-    youtube_downloader.dowload_tools().await?;
+    let youtube_downloader: YoutubeDownloader = YoutubeDownloader::new(output_dir, config.codec, 3).await;
+    youtube_downloader.download_tools().await?;
     Ok(youtube_downloader)
 }
 

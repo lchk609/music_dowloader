@@ -1,6 +1,7 @@
 import { VerticalBox, HorizontalBox, ScrollView, Button, LineEdit } from "std-widgets.slint";
 import { SongItem, Song } from "components/song-item.slint";
 import { Sidebar } from "components/side-bar.slint";
+import { AddPlaylist } from "components/add-playlist-dialog.slint";
 
 export component App inherits Window {
     min-width: 1000px;
@@ -10,8 +11,10 @@ export component App inherits Window {
     callback download_clicked(string);
 
     in-out property <string> url: "";
-    property <[string]> playlists: ["playlist 1", "playlist 2"];
+    in-out property <[string]> playlists: [];
     in-out property <[Song]> songs: [];
+
+    add-playlist-popup := AddPlaylist {}
 
     HorizontalBox {
         spacing: 20px;
@@ -19,9 +22,8 @@ export component App inherits Window {
 
         Sidebar {
             playlists: root.playlists;
-            playlist_selected => {
-                // Handle playlist selection in Rust if needed
-                // debug("Selected: " + playlist_selected);
+            open_add_playlist_dialog() => {
+                add-playlist-popup.visible = true;
             }
         }
 

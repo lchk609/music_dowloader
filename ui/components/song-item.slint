@@ -3,11 +3,13 @@ import { HorizontalBox, Spinner } from "std-widgets.slint";
 export struct Song {
     title: string,
     is_downloading: bool,
+    download_id: string,
 }
 
 export component SongItem inherits Rectangle {
     in property <string> title;
     in property <bool> is_downloading: false;
+    in property <string> download_id;
     callback download_clicked;
 
     height: 90px;
