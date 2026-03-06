@@ -1,5 +1,10 @@
 
-import { VerticalBox, LineEdit, Button } from "std-widgets.slint";
+import {
+    VerticalBox,
+    LineEdit,
+    Button,
+    HorizontalBox,
+} from "std-widgets.slint";
 export component AddPlaylist inherits Dialog {
     in-out property <string> playlist-url: "";
     in-out property <string> playlist-name: "";
@@ -23,36 +28,71 @@ export component AddPlaylist inherits Dialog {
             spacing: 20px;
             padding: 20px;
 
-            LineEdit {
-                placeholder-text: "playlist name";
-                input-type: InputType.text;
-                height: 40px;
-                horizontal-stretch: 1;
+            VerticalBox {
+                LineEdit {
+                    placeholder-text: "playlist name";
+                    input-type: InputType.text;
+                    height: 40px;
+                    horizontal-stretch: 1;
+    
+                    edited(value) => {
+                        root.playlist-name = value;
+                    }
+                }
 
-                edited(value) => {
-                    root.playlist-name = value;
+                playlist-name-error := Text {
+                    accessible-id: "playlist-name-error";
+                    text: "Please enter a playlist name.";
+                    color: red;
+                    visible: false; 
                 }
             }
 
-            LineEdit {
-                placeholder-text: "playlist url";
-                input-type: InputType.text;
-                height: 40px;
-                horizontal-stretch: 1;
 
-                edited(value) => {
-                    root.playlist-url = value;
+            VerticalBox {
+                LineEdit {
+                    placeholder-text: "playlist url";
+                    input-type: InputType.text;
+                    height: 40px;
+                    horizontal-stretch: 1;
+    
+                    edited(value) => {
+                        root.playlist-url = value;
+                    }
+                }
+
+                playlist-url-error := Text {
+                    accessible-id: "playlist-url-error";
+                    text: "Please enter a valid URL.";
+                    color: red;
+                    visible: false; 
                 }
             }
 
-            Button {
-                text: "add";
-                width: 120px;
-                height: 40px;
+            HorizontalBox {
+                Button {
+                    text: "add";
+                    width: 120px;
+                    height: 40px;
+                    clicked => {
+                        if (root.playlist-name != "" && root.playlist-url != "") {
+                            root.add_playlist(root.playlist-name, root.playlist-url);
+                            root.visible = false;
+                        } else {
+                            playlist-url-error.visible = root.playlist-url == "";
+                            playlist-name-error.visible = root.playlist-name == "";
 
-                clicked => {
-                    root.add_playlist(root.playlist-name, root.playlist-url);
-                    root.visible = false;
+                        }
+                    }
+                }
+
+                Button {
+                    text: "cancel";
+                    width: 120px;
+                    height: 40px;
+                    clicked => {
+                        root.visible = false;
+                    }
                 }
             }
         }
