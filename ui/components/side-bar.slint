@@ -1,0 +1,49 @@
+import { VerticalBox, Button } from "std-widgets.slint";
+import { PlaylistItem } from "playlist-item.slint";
+import { AddPlaylist } from "add-playlist-dialog.slint";
+export component Sidebar inherits Rectangle {
+    in property <[string]> playlists;
+    in property <string> name;
+    callback playlist_selected(string);
+    callback open_add_playlist_dialog();
+
+    width: 220px;
+    border-width: 2px;
+    border-color: #444;
+    border-radius: 20px;
+
+    VerticalBox {
+        padding: 16px;
+        spacing: 16px;
+
+        Text {
+            text: "tracked playlists";
+            font-size: 18px;
+        }
+
+        Button {
+            text: "add playlist";
+            height: 40px;
+            icon: @image-url("../assets/icon-plus.svg");
+            icon-size: 16px;
+
+            clicked => {
+                root.open_add_playlist_dialog();
+            }
+        }
+
+        for playlist in playlists : PlaylistItem {
+            title: playlist;
+            clicked => {
+                root.playlist_selected(playlist);
+            }
+        }
+
+        Rectangle { height: 100%; }
+
+        Button {
+            text: "settings";
+            height: 40px;
+        }
+    }
+}

@@ -1,0 +1,73 @@
+import { VerticalBox, HorizontalBox, ScrollView, Button, LineEdit } from "std-widgets.slint";
+import { SongItem, Song } from "components/song-item.slint";
+import { Sidebar } from "components/side-bar.slint";
+import { AddPlaylist } from "components/add-playlist-dialog.slint";
+
+export component App inherits Window {
+    min-width: 1000px;
+    min-height: 650px;
+    title: "Music Downloader";
+
+    callback download_clicked(string);
+
+    in-out property <string> url: "";
+    in-out property <[string]> playlists: [];
+    in-out property <[Song]> songs: [];
+
+    add-playlist-popup := AddPlaylist {}
+
+    HorizontalBox {
+        spacing: 20px;
+        padding: 20px;
+
+        Sidebar {
+            playlists: root.playlists;
+            open_add_playlist_dialog() => {
+                add-playlist-popup.visible = true;
+            }
+        }
+
+        VerticalBox {
+            spacing: 20px;
+
+            HorizontalBox {
+                spacing: 10px;
+
+                LineEdit {
+                    placeholder-text: "paste the url";
+                    horizontal-stretch: 1;
+                    input-type: InputType.text;
+                    height: 40px;
+                    
+                    // text: root.url;
+                    edited(value) => { root.url = value; }
+                }
+
+                Button {
+                    text: "download";
+                    width: 120px;
+                    accessible-role: AccessibleRole.none;
+                    height: 40px;
+                    
+                    clicked => {
+                        root.download_clicked(root.url);
+                    }
+                }
+            }
+
+            ScrollView {
+                vertical-stretch: 1;
+
+                VerticalBox {
+                    spacing: 15px;
+                    padding: 5px;
+
+                    for song in root.songs : SongItem {
+                        title: song.title;
+                        is_downloading: song.is_downloading;
+                    }
+                }
+            }
+        }
+    }
+}
