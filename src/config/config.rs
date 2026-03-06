@@ -13,6 +13,7 @@ pub struct Config {
     // key = playlist id
     // value = playlist name
     pub codec: CodecPreference,
+    pub max_concurrent_downloads: usize,
 }
 
 async fn config_path() -> Result<PathBuf, Box<dyn std::error::Error>> {

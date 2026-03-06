@@ -2,7 +2,7 @@ use crate::config::config::Config;
 use crate::dowloaders::youtube::YoutubeDownloader;
 use crate::ui::components::download_button;
 use crate::{App, Song};
-use slint::{ComponentHandle, Model};
+use slint::{Model};
 use slint::{ModelRc, SharedString, VecModel};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -80,7 +80,6 @@ pub async fn setup_gui(
     get_or_create_output_dir(music_path.to_string_lossy().to_string(), config).await?;
 
     load_music_on_opening(app, music_path).await?;
-    // youtube_downloader.download_hook_subscriber().await?;
     setup_event_listiners(app, youtube_downloader).await?;
 
     Ok(())
@@ -96,7 +95,7 @@ pub async fn setup_dowloader() -> Result<YoutubeDownloader, Box<dyn std::error::
 
     get_or_create_output_dir(output_dir.to_string_lossy().to_string(), config.clone()).await?;
 
-    let youtube_downloader: YoutubeDownloader = YoutubeDownloader::new(output_dir, config.codec, 3).await;
+    let youtube_downloader: YoutubeDownloader = YoutubeDownloader::new(output_dir, config.codec, config.max_concurrent_downloads).await;
     youtube_downloader.download_tools().await?;
     Ok(youtube_downloader)
 }

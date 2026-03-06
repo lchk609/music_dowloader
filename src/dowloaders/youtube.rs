@@ -1,22 +1,20 @@
-use crate::dowloaders;
-use crate::enums::codec::{self, CodecPreference};
+use crate::enums::codec::{CodecPreference};
 use async_trait::async_trait;
-use futures::stream::StreamExt;
-use std::any::Any;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::process::Command;
-use tokio::sync::{Mutex, Semaphore};
+use tokio::sync::{Semaphore};
 use yt_dlp::Downloader;
 use yt_dlp::client::deps::Libraries;
 use yt_dlp::events::{DownloadEvent, EventFilter, EventHook, HookResult};
-use yt_dlp::model::playlist::{Playlist, PlaylistDownloadProgress};
+use tokio::sync::mpsc;
+use crate::events::download_events::CustomDownloadEvent;
 
 pub struct YoutubeDownloader {
     output_dir: PathBuf,
     codec_preference: CodecPreference,
-    // semaphore: Arc<Semaphore>,
+    semaphore: Arc<Semaphore>,
     libraries: Libraries,
 }
 
@@ -36,7 +34,7 @@ impl YoutubeDownloader {
         Self {
             output_dir: output_dir.clone(),
             codec_preference,
-            // semaphore: Arc::new(Semaphore::new(max_concurrent)),
+            semaphore: Arc::new(Semaphore::new(max_concurrent)),
             libraries: libraries.clone(),
         }
     }
@@ -45,7 +43,6 @@ impl YoutubeDownloader {
         let executables_dir = PathBuf::from("libs");
         let output_dir = PathBuf::from("output");
 
-        // Create fetcher and install binaries
         Downloader::with_new_binaries(executables_dir, output_dir)
             .await?
             .build()
@@ -67,32 +64,15 @@ impl YoutubeDownloader {
     pub async fn download_audio_stream_with_hooks(
         &self,
         url: &str,
+        event_tx: mpsc::UnboundedSender<CustomDownloadEvent>,
     ) -> Result<String, Box<dyn std::error::Error>> {
         println!("Starting download for URL: {}", url);
+
+        let _permit = self.semaphore.acquire().await?;
 
         let mut downloader = Downloader::builder(self.libraries.clone(), self.output_dir.clone())
             .build()
             .await?;
-
-        let hook: MusicDownloadEvent = MusicDownloadEvent;
-        downloader.register_hook(hook.clone()).await;
-
-        // Wrap the downloader in Arc to share across async tasks
-        let downloader = Arc::new(downloader);
-        let downloader_for_events = Arc::clone(&downloader);
-        let hook_for_events = hook.clone();
-
-        // Subscribe to event bus in a background task and manually execute hook
-        // Since hook_registry is private in yt-dlp, we subscribe directly
-        tokio::spawn(async move {
-            let mut rx = downloader_for_events.subscribe_events();
-            while let Ok(event) = rx.recv().await {
-                // Call the hook's on_event method directly for each event received
-                if let Err(e) = hook_for_events.on_event(&event).await {
-                    eprintln!("Hook execution error: {:?}", e);
-                }
-            }
-        });
 
         let video_infos = downloader.fetch_video_infos(url).await?;
 
@@ -109,6 +89,22 @@ impl YoutubeDownloader {
             println!("Music already exists: {}", &video_infos.title);
             return Ok(video_infos.title);
         }
+
+        let hook = MusicDownloadEvent::new(event_tx.clone(), video_infos.title.clone());
+        downloader.register_hook(hook.clone()).await;
+
+        let downloader = Arc::new(downloader);
+        let downloader_for_events = Arc::clone(&downloader);
+        let hook_for_events = hook.clone();
+
+        tokio::spawn(async move {
+            let mut rx = downloader_for_events.subscribe_events();
+            while let Ok(event) = rx.recv().await {
+                if let Err(e) = hook_for_events.on_event(&event).await {
+                    eprintln!("Hook execution error: {:?}", e);
+                }
+            }
+        });
 
         let output_path = format!("{}.webm", video_infos.title);
 
@@ -210,65 +206,29 @@ impl YoutubeDownloader {
 }
 
 #[derive(Clone)]
-struct MusicDownloadEvent;
+struct MusicDownloadEvent {
+    tx: mpsc::UnboundedSender<CustomDownloadEvent>,
+    music_title: String,
+}
+
+impl MusicDownloadEvent {
+    fn new(tx: mpsc::UnboundedSender<CustomDownloadEvent>, music_title: String) -> Self {
+        Self { tx, music_title }
+    }
+}
 
 #[async_trait]
 impl EventHook for MusicDownloadEvent {
     async fn on_event(&self, event: &DownloadEvent) -> HookResult {
-        match event {
-            DownloadEvent::DownloadStarted {
-                download_id,
-                format_id,
-                ..
-            } => {
-                println!(
-                    "Download {} started with format: {}",
-                    download_id,
-                    format_id.as_deref().unwrap_or("unknown")
-                );
-            }
-            DownloadEvent::DownloadCompleted {
-                download_id,
-                output_path,
-                ..
-            } => {
-                println!("Download {} completed: {:?}", download_id, output_path);
-            }
-            DownloadEvent::DownloadProgress {
-                download_id,
-                downloaded_bytes,
-                total_bytes,
-                speed_bytes_per_sec,
-                eta_seconds,
-            } => {
-                let progress = format!(
-                    "{:.2}%",
-                    (*downloaded_bytes as f64 / *total_bytes as f64) * 100.0
-                );
-                println!(
-                    "Download {} progress: {} ({} / {:?} bytes, speed: {:?} B/s, ETA: {:?} seconds)",
-                    download_id,
-                    progress,
-                    downloaded_bytes,
-                    total_bytes,
-                    speed_bytes_per_sec,
-                    eta_seconds
-                );
-            }
-            DownloadEvent::DownloadFailed {
-                download_id, error, ..
-            } => {
-                eprintln!("Download {} failed: {}", download_id, error);
-            }
-            _ => {
-                println!("Other event: {:?}", event.event_type());
-            }
-        }
+        let _ = self.tx.send(CustomDownloadEvent {
+            download_event: event.clone(),
+            music_title: self.music_title.clone(),
+        });
+
         Ok(())
     }
 
     fn filter(&self) -> EventFilter {
-        // Only receive terminal events (completed, failed, canceled)
         EventFilter::all()
     }
 }

@@ -6,6 +6,7 @@ mod setup;
 mod ui;
 mod config;
 mod enums;
+mod events;
 slint::include_modules!();
 
 #[tokio::main]
