@@ -1,41 +1,28 @@
-use crate::enums::codec::{CodecPreference};
+use crate::dowloaders::dowloader_base::DownloaderBase;
+use crate::enums::codec::CodecPreference;
+use crate::events::download_events::CustomDownloadEvent;
 use async_trait::async_trait;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::process::Command;
-use tokio::sync::{Semaphore};
+use tokio::sync::Semaphore;
+use tokio::sync::mpsc;
 use yt_dlp::Downloader;
 use yt_dlp::client::deps::Libraries;
 use yt_dlp::events::{DownloadEvent, EventFilter, EventHook, HookResult};
-use tokio::sync::mpsc;
-use crate::events::download_events::CustomDownloadEvent;
+use yt_dlp::model::playlist::Playlist;
 
 pub struct YoutubeDownloader {
-    output_dir: PathBuf,
-    codec_preference: CodecPreference,
+    downloader_base: DownloaderBase,
     semaphore: Arc<Semaphore>,
-    libraries: Libraries,
 }
 
 impl YoutubeDownloader {
-    pub async fn new(
-        output_dir: PathBuf,
-        codec_preference: CodecPreference,
-        max_concurrent: usize,
-    ) -> Self {
-        let libraries_dir = PathBuf::from("libs");
-
-        let youtube = libraries_dir.join("yt-dlp");
-        let ffmpeg = libraries_dir.join("ffmpeg");
-
-        let libraries = Libraries::new(youtube, ffmpeg);
-
+    pub fn new(downloader_base: DownloaderBase) -> Self {
         Self {
-            output_dir: output_dir.clone(),
-            codec_preference,
-            semaphore: Arc::new(Semaphore::new(max_concurrent)),
-            libraries: libraries.clone(),
+            semaphore: Arc::new(Semaphore::new(downloader_base.max_concurrent)),
+            downloader_base,
         }
     }
 
@@ -66,11 +53,9 @@ impl YoutubeDownloader {
         url: &str,
         event_tx: mpsc::UnboundedSender<CustomDownloadEvent>,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        println!("Starting download for URL: {}", url);
-
         let _permit = self.semaphore.acquire().await?;
 
-        let mut downloader = Downloader::builder(self.libraries.clone(), self.output_dir.clone())
+        let mut downloader = Downloader::builder(self.downloader_base.libraries.clone(), self.downloader_base.output_dir.clone())
             .build()
             .await?;
 
@@ -81,8 +66,8 @@ impl YoutubeDownloader {
         if self
             .check_if_music_already_exists(
                 &video_infos.title,
-                &self.output_dir,
-                &self.codec_preference.to_string(),
+                &self.downloader_base.output_dir,
+                &self.downloader_base.codec_preference.to_string(),
             )
             .await
         {
@@ -111,7 +96,7 @@ impl YoutubeDownloader {
         let _ = downloader
             .download(&video_infos, output_path.clone())
             .audio_quality(yt_dlp::model::AudioQuality::Best)
-            .audio_codec(self.codec_preference.to_yt_dlp_codec())
+            .audio_codec(self.downloader_base.codec_preference.to_yt_dlp_codec())
             .execute_audio_stream()
             .await;
 
@@ -123,15 +108,15 @@ impl YoutubeDownloader {
     }
 
     async fn convert_audio(&self, audio_title: &str) -> Result<(), String> {
-        let input = self.output_dir.join(format!("{}.webm", audio_title));
-        let output = self.output_dir.join(format!(
+        let input = self.downloader_base.output_dir.join(format!("{}.webm", audio_title));
+        let output = self.downloader_base.output_dir.join(format!(
             "{}.{}",
             audio_title,
-            self.codec_preference.to_string().to_lowercase()
+            self.downloader_base.codec_preference.to_string().to_lowercase()
         ));
 
         println!("Converting audio from {:?} to {:?}", input, output);
-        let ffmpeg_args = match self.codec_preference {
+        let ffmpeg_args = match self.downloader_base.codec_preference {
             CodecPreference::MP3 => vec![
                 "-i",
                 input.to_str().unwrap(),
@@ -187,7 +172,7 @@ impl YoutubeDownloader {
             }
         };
 
-        let status = Command::new(&self.libraries.ffmpeg)
+        let status = Command::new(&self.downloader_base.libraries.ffmpeg)
             .args(&ffmpeg_args)
             .status()
             .await
