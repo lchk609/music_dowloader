@@ -9,14 +9,14 @@ use tokio::sync::mpsc::UnboundedSender;
 pub struct DownloadButton {
     app: Weak<App>,
     youtube_downloader: Arc<YoutubeDownloader>,
-    tx: UnboundedSender<CustomDownloadEvent>,
+    tx: Arc<UnboundedSender<CustomDownloadEvent>>,
 }
 
 impl DownloadButton {
     pub fn new(
         app: &App,
         downloader_base: DownloaderBase,
-        tx: UnboundedSender<CustomDownloadEvent>,
+        tx: Arc<UnboundedSender<CustomDownloadEvent>>,
     ) -> Self {
         let youtube_downloader = Arc::new(YoutubeDownloader::new(downloader_base));
 
@@ -39,12 +39,10 @@ impl DownloadButton {
 
                     let tx = tx.clone();
                     tokio::spawn(async move {
-                        let title = youtube_downloader
+                        youtube_downloader
                             .download_audio_stream_with_hooks(&url, tx)
                             .await
                             .unwrap();
-
-                        println!("Download finished: {}", title);
                     });
                 }
             });

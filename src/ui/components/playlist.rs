@@ -11,14 +11,14 @@ use crate::events::download_events::CustomDownloadEvent;
 pub struct Playlist {
     app: Weak<App>,
     playlist_downloader: Arc<PlaylistDownloader>,
-    tx: UnboundedSender<CustomDownloadEvent>,
+    tx: Arc<UnboundedSender<CustomDownloadEvent>>,
 }
 
 impl Playlist {
     pub fn new(
         app: &App,
         downloader_base: DownloaderBase,
-        tx: UnboundedSender<CustomDownloadEvent>,
+        tx: Arc<UnboundedSender<CustomDownloadEvent>>,
     ) -> Self {
         let playlist_downloader = Arc::new(PlaylistDownloader::new(downloader_base));
         Self {

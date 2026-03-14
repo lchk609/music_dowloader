@@ -1,5 +1,4 @@
-use dowloaders::youtube::YoutubeDownloader;
-use std::sync::Arc;
+use dowloaders::music::YoutubeDownloader;
 
 use crate::dowloaders::dowloader_base::DownloaderBase;
 

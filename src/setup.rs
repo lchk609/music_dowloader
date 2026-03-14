@@ -1,6 +1,6 @@
 use crate::config::config::Config;
 use crate::dowloaders::dowloader_base::DownloaderBase;
-use crate::dowloaders::youtube::YoutubeDownloader;
+use crate::dowloaders::music::YoutubeDownloader;
 use crate::events::download_events::CustomDownloadEvent;
 use crate::ui::components::song_item::ItemManagement;
 use crate::ui::components::{download_button, playlist};
@@ -84,10 +84,12 @@ async fn setup_event_listiners(
 
     ItemManagement::new(rx).start_listening(app.as_weak());
 
+    let tx_arc = Arc::new(tx);
+
     let download_button =
-        download_button::DownloadButton::new(app, downloader_base.clone(), tx.clone());
+        download_button::DownloadButton::new(app, downloader_base.clone(), Arc::clone(&tx_arc));
     download_button.manage_add_music().await;
-    let playlist = playlist::Playlist::new(app, downloader_base.clone(), tx.clone());
+    let playlist = playlist::Playlist::new(app, downloader_base.clone(), Arc::clone(&tx_arc));
     playlist.manage_playlist().await;
     Ok(())
 }
