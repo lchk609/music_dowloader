@@ -1,12 +1,17 @@
 use crate::config::config::Config;
-use crate::dowloaders::youtube::YoutubeDownloader;
-use crate::ui::components::download_button;
+use crate::dowloaders::dowloader_base::DownloaderBase;
+use crate::dowloaders::music::MusicDownloader;
+use crate::events::download_events::CustomDownloadEvent;
+use crate::ui::components::song_item::ItemManagement;
+use crate::ui::components::{download_button, playlist};
 use crate::{App, Song};
-use slint::{Model};
-use slint::{ModelRc, SharedString, VecModel};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
+use tokio::sync::Semaphore;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
+use tokio::sync::mpsc::unbounded_channel;
+use yt_dlp::client::Libraries;
 
 struct MusicFile {
     title: String,
@@ -57,18 +62,42 @@ async fn load_music_on_opening(
     Ok(())
 }
 
+async fn load_playlists_on_opening(
+    app: &App,
+    config: &Config,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut playlists: Vec<SharedString> = Vec::new();
+
+    for playlist_info in config.playlists.iter() {
+        playlists.push(SharedString::from(playlist_info.name.clone()));
+    }
+
+    app.set_playlists(ModelRc::new(VecModel::from(playlists)));
+
+    Ok(())
+}
+
 async fn setup_event_listiners(
     app: &App,
-    youtube_downloader: Arc<YoutubeDownloader>,
+    downloader_base: DownloaderBase,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let download_button = download_button::DownloadButton::new(app, youtube_downloader.clone());
+    let (tx, rx) = unbounded_channel::<CustomDownloadEvent>();
+
+    ItemManagement::new(rx).start_listening(app.as_weak());
+
+    let tx_arc = Arc::new(tx);
+
+    let download_button =
+        download_button::DownloadButton::new(app, downloader_base.clone(), Arc::clone(&tx_arc));
     download_button.manage_add_music().await;
+    let playlist = playlist::Playlist::new(app, downloader_base.clone(), Arc::clone(&tx_arc));
+    playlist.manage_playlist().await;
     Ok(())
 }
 
 pub async fn setup_gui(
     app: &App,
-    youtube_downloader: Arc<YoutubeDownloader>,
+    downloader_base: DownloaderBase,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config: Config = Config::load().await?;
 
@@ -77,15 +106,16 @@ pub async fn setup_gui(
         None => PathBuf::new(),
     };
 
-    get_or_create_output_dir(music_path.to_string_lossy().to_string(), config).await?;
+    get_or_create_output_dir(music_path.to_string_lossy().to_string(), &config).await?;
 
     load_music_on_opening(app, music_path).await?;
-    setup_event_listiners(app, youtube_downloader).await?;
+    load_playlists_on_opening(app, &config).await?;
+    setup_event_listiners(app, downloader_base).await?;
 
     Ok(())
 }
 
-pub async fn setup_dowloader() -> Result<YoutubeDownloader, Box<dyn std::error::Error>> {
+pub async fn setup_dowloader() -> Result<DownloaderBase, Box<dyn std::error::Error>> {
     let config: Config = Config::load().await?;
 
     let output_dir: PathBuf = match config.saved_directory.clone() {
@@ -93,16 +123,30 @@ pub async fn setup_dowloader() -> Result<YoutubeDownloader, Box<dyn std::error::
         None => PathBuf::new(),
     };
 
-    get_or_create_output_dir(output_dir.to_string_lossy().to_string(), config.clone()).await?;
+    get_or_create_output_dir(output_dir.to_string_lossy().to_string(), &config).await?;
 
-    let youtube_downloader: YoutubeDownloader = YoutubeDownloader::new(output_dir, config.codec, config.max_concurrent_downloads).await;
-    youtube_downloader.download_tools().await?;
-    Ok(youtube_downloader)
+    let libraries_dir = PathBuf::from("libs");
+
+    let youtube = libraries_dir.join("yt-dlp");
+    let ffmpeg = libraries_dir.join("ffmpeg");
+
+    let libraries = Libraries::new(youtube, ffmpeg);
+
+    let downlader_base = DownloaderBase {
+        libraries,
+        codec_preference: config.codec,
+        output_dir,
+        semaphore: Arc::new(Semaphore::new(config.max_concurrent_downloads))
+    };
+
+    let music_downloader: MusicDownloader = MusicDownloader::new(downlader_base.clone());
+    music_downloader.download_tools().await?;
+    Ok(downlader_base)
 }
 
 async fn get_or_create_output_dir(
     mut path: String,
-    config: Config,
+    config: &Config,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let user_home: PathBuf = match directories::UserDirs::new() {
         Some(path_home) => path_home.home_dir().to_path_buf(),
@@ -123,7 +167,7 @@ async fn get_or_create_output_dir(
 
     Config {
         saved_directory: Some(output_dir.clone()),
-        ..config
+        ..config.clone()
     }
     .save()
     .await?;

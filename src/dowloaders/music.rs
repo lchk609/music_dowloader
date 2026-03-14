@@ -1,41 +1,24 @@
-use crate::enums::codec::{CodecPreference};
+use crate::dowloaders::dowloader_base::DownloaderBase;
+use crate::enums::codec::CodecPreference;
+use crate::events::download_events::CustomDownloadEvent;
 use async_trait::async_trait;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::process::Command;
-use tokio::sync::{Semaphore};
-use yt_dlp::Downloader;
-use yt_dlp::client::deps::Libraries;
-use yt_dlp::events::{DownloadEvent, EventFilter, EventHook, HookResult};
 use tokio::sync::mpsc;
-use crate::events::download_events::CustomDownloadEvent;
+use yt_dlp::Downloader;
+use yt_dlp::events::{DownloadEvent, EventFilter, EventHook, HookResult};
+use sanitize_filename::sanitize;
 
-pub struct YoutubeDownloader {
-    output_dir: PathBuf,
-    codec_preference: CodecPreference,
-    semaphore: Arc<Semaphore>,
-    libraries: Libraries,
+pub struct MusicDownloader {
+    downloader_base: DownloaderBase,
 }
 
-impl YoutubeDownloader {
-    pub async fn new(
-        output_dir: PathBuf,
-        codec_preference: CodecPreference,
-        max_concurrent: usize,
-    ) -> Self {
-        let libraries_dir = PathBuf::from("libs");
-
-        let youtube = libraries_dir.join("yt-dlp");
-        let ffmpeg = libraries_dir.join("ffmpeg");
-
-        let libraries = Libraries::new(youtube, ffmpeg);
-
+impl MusicDownloader {
+    pub fn new(downloader_base: DownloaderBase) -> Self {
         Self {
-            output_dir: output_dir.clone(),
-            codec_preference,
-            semaphore: Arc::new(Semaphore::new(max_concurrent)),
-            libraries: libraries.clone(),
+            downloader_base,
         }
     }
 
@@ -64,15 +47,16 @@ impl YoutubeDownloader {
     pub async fn download_audio_stream_with_hooks(
         &self,
         url: &str,
-        event_tx: mpsc::UnboundedSender<CustomDownloadEvent>,
-    ) -> Result<String, Box<dyn std::error::Error>> {
-        println!("Starting download for URL: {}", url);
+        event_tx: Arc<mpsc::UnboundedSender<CustomDownloadEvent>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let _permit = self.downloader_base.semaphore.acquire().await?;
 
-        let _permit = self.semaphore.acquire().await?;
-
-        let mut downloader = Downloader::builder(self.libraries.clone(), self.output_dir.clone())
-            .build()
-            .await?;
+        let mut downloader = Downloader::builder(
+            self.downloader_base.libraries.clone(),
+            self.downloader_base.output_dir.clone(),
+        )
+        .build()
+        .await?;
 
         let video_infos = downloader.fetch_video_infos(url).await?;
 
@@ -80,17 +64,17 @@ impl YoutubeDownloader {
 
         if self
             .check_if_music_already_exists(
-                &video_infos.title,
-                &self.output_dir,
-                &self.codec_preference.to_string(),
+                sanitize(&video_infos.title).as_str(),
+                &self.downloader_base.output_dir,
+                &self.downloader_base.codec_preference.to_string(),
             )
             .await
         {
             println!("Music already exists: {}", &video_infos.title);
-            return Ok(video_infos.title);
+            return Ok(());
         }
 
-        let hook = MusicDownloadEvent::new(event_tx.clone(), video_infos.title.clone());
+        let hook = MusicDownloadEvent::new(Arc::clone(&event_tx), sanitize(video_infos.title.clone()));
         downloader.register_hook(hook.clone()).await;
 
         let downloader = Arc::new(downloader);
@@ -106,32 +90,38 @@ impl YoutubeDownloader {
             }
         });
 
-        let output_path = format!("{}.webm", video_infos.title);
+        let output_path = format!("{}.webm", sanitize(&video_infos.title));
 
         let _ = downloader
-            .download(&video_infos, output_path.clone())
+            .download(&video_infos, output_path)
             .audio_quality(yt_dlp::model::AudioQuality::Best)
-            .audio_codec(self.codec_preference.to_yt_dlp_codec())
+            .audio_codec(self.downloader_base.codec_preference.to_yt_dlp_codec())
             .execute_audio_stream()
             .await;
 
-        self.convert_audio(&video_infos.title.as_str()).await?;
+        self.convert_audio(sanitize(video_infos.title).as_str()).await?;
 
         println!("Download completed for URL: {}", url);
 
-        Ok(video_infos.title)
+        Ok(())
     }
 
     async fn convert_audio(&self, audio_title: &str) -> Result<(), String> {
-        let input = self.output_dir.join(format!("{}.webm", audio_title));
-        let output = self.output_dir.join(format!(
+        let input = self
+            .downloader_base
+            .output_dir
+            .join(format!("{}.webm", audio_title));
+        let output = self.downloader_base.output_dir.join(format!(
             "{}.{}",
             audio_title,
-            self.codec_preference.to_string().to_lowercase()
+            self.downloader_base
+                .codec_preference
+                .to_string()
+                .to_lowercase()
         ));
 
         println!("Converting audio from {:?} to {:?}", input, output);
-        let ffmpeg_args = match self.codec_preference {
+        let ffmpeg_args = match self.downloader_base.codec_preference {
             CodecPreference::MP3 => vec![
                 "-i",
                 input.to_str().unwrap(),
@@ -187,7 +177,7 @@ impl YoutubeDownloader {
             }
         };
 
-        let status = Command::new(&self.libraries.ffmpeg)
+        let status = Command::new(&self.downloader_base.libraries.ffmpeg)
             .args(&ffmpeg_args)
             .status()
             .await
@@ -207,12 +197,12 @@ impl YoutubeDownloader {
 
 #[derive(Clone)]
 struct MusicDownloadEvent {
-    tx: mpsc::UnboundedSender<CustomDownloadEvent>,
+    tx: Arc<mpsc::UnboundedSender<CustomDownloadEvent>>,
     music_title: String,
 }
 
 impl MusicDownloadEvent {
-    fn new(tx: mpsc::UnboundedSender<CustomDownloadEvent>, music_title: String) -> Self {
+    fn new(tx: Arc<mpsc::UnboundedSender<CustomDownloadEvent>>, music_title: String) -> Self {
         Self { tx, music_title }
     }
 }
