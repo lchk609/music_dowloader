@@ -1,6 +1,6 @@
 use crate::config::config::Config;
 use crate::dowloaders::dowloader_base::DownloaderBase;
-use crate::dowloaders::music::YoutubeDownloader;
+use crate::dowloaders::music::MusicDownloader;
 use crate::events::download_events::CustomDownloadEvent;
 use crate::ui::components::song_item::ItemManagement;
 use crate::ui::components::{download_button, playlist};
@@ -138,8 +138,8 @@ pub async fn setup_dowloader() -> Result<DownloaderBase, Box<dyn std::error::Err
         max_concurrent: config.max_concurrent_downloads,
     };
 
-    let youtube_downloader: YoutubeDownloader = YoutubeDownloader::new(downlader_base.clone());
-    youtube_downloader.download_tools().await?;
+    let music_downloader: MusicDownloader = MusicDownloader::new(downlader_base.clone());
+    music_downloader.download_tools().await?;
     Ok(downlader_base)
 }
 

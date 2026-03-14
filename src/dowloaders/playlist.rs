@@ -4,7 +4,7 @@ use tokio::sync::{Semaphore, mpsc};
 use yt_dlp::{Downloader, model::playlist::Playlist};
 
 use crate::{
-    dowloaders::{dowloader_base::DownloaderBase, music::YoutubeDownloader},
+    dowloaders::{dowloader_base::DownloaderBase, music::MusicDownloader},
     events::download_events::CustomDownloadEvent,
 };
 
@@ -46,8 +46,8 @@ impl PlaylistDownloader {
             ..downloader_base
         };
 
-        let downloader: Arc<YoutubeDownloader> =
-            Arc::new(YoutubeDownloader::new(new_dowloader_base.clone()));
+        let downloader: Arc<MusicDownloader> =
+            Arc::new(MusicDownloader::new(new_dowloader_base.clone()));
 
         for video in playlist_infos.entries {
             let downloader_clone = Arc::clone(&downloader);

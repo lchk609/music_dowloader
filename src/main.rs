@@ -1,4 +1,4 @@
-use dowloaders::music::YoutubeDownloader;
+use dowloaders::music::MusicDownloader;
 
 use crate::dowloaders::dowloader_base::DownloaderBase;
 

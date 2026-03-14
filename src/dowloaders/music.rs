@@ -12,12 +12,12 @@ use yt_dlp::Downloader;
 use yt_dlp::events::{DownloadEvent, EventFilter, EventHook, HookResult};
 use sanitize_filename::sanitize;
 
-pub struct YoutubeDownloader {
+pub struct MusicDownloader {
     downloader_base: DownloaderBase,
     semaphore: Arc<Semaphore>,
 }
 
-impl YoutubeDownloader {
+impl MusicDownloader {
     pub fn new(downloader_base: DownloaderBase) -> Self {
         Self {
             semaphore: Arc::new(Semaphore::new(downloader_base.max_concurrent)),
