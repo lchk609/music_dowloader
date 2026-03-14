@@ -6,7 +6,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::process::Command;
-use tokio::sync::Semaphore;
 use tokio::sync::mpsc;
 use yt_dlp::Downloader;
 use yt_dlp::events::{DownloadEvent, EventFilter, EventHook, HookResult};
@@ -14,13 +13,11 @@ use sanitize_filename::sanitize;
 
 pub struct MusicDownloader {
     downloader_base: DownloaderBase,
-    semaphore: Arc<Semaphore>,
 }
 
 impl MusicDownloader {
     pub fn new(downloader_base: DownloaderBase) -> Self {
         Self {
-            semaphore: Arc::new(Semaphore::new(downloader_base.max_concurrent)),
             downloader_base,
         }
     }
@@ -52,7 +49,7 @@ impl MusicDownloader {
         url: &str,
         event_tx: Arc<mpsc::UnboundedSender<CustomDownloadEvent>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let _permit = self.semaphore.acquire().await?;
+        let _permit = self.downloader_base.semaphore.acquire().await?;
 
         let mut downloader = Downloader::builder(
             self.downloader_base.libraries.clone(),
@@ -77,7 +74,7 @@ impl MusicDownloader {
             return Ok(());
         }
 
-        let hook = MusicDownloadEvent::new(Arc::clone(&event_tx), video_infos.title.clone());
+        let hook = MusicDownloadEvent::new(Arc::clone(&event_tx), sanitize(video_infos.title.clone()));
         downloader.register_hook(hook.clone()).await;
 
         let downloader = Arc::new(downloader);
@@ -96,7 +93,7 @@ impl MusicDownloader {
         let output_path = format!("{}.webm", sanitize(&video_infos.title));
 
         let _ = downloader
-            .download(&video_infos, output_path.clone())
+            .download(&video_infos, output_path)
             .audio_quality(yt_dlp::model::AudioQuality::Best)
             .audio_codec(self.downloader_base.codec_preference.to_yt_dlp_codec())
             .execute_audio_stream()

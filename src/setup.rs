@@ -6,6 +6,7 @@ use crate::ui::components::song_item::ItemManagement;
 use crate::ui::components::{download_button, playlist};
 use crate::{App, Song};
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
+use tokio::sync::Semaphore;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
@@ -135,7 +136,7 @@ pub async fn setup_dowloader() -> Result<DownloaderBase, Box<dyn std::error::Err
         libraries,
         codec_preference: config.codec,
         output_dir,
-        max_concurrent: config.max_concurrent_downloads,
+        semaphore: Arc::new(Semaphore::new(config.max_concurrent_downloads))
     };
 
     let music_downloader: MusicDownloader = MusicDownloader::new(downlader_base.clone());

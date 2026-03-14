@@ -1,4 +1,5 @@
-use std::{path::PathBuf};
+use std::{path::PathBuf, sync::Arc};
+use tokio::sync::Semaphore;
 use yt_dlp::client::Libraries;
 
 use crate::enums::codec::CodecPreference;
@@ -8,5 +9,5 @@ pub struct DownloaderBase {
     pub libraries: Libraries,
     pub codec_preference: CodecPreference,
     pub output_dir: PathBuf,
-    pub max_concurrent: usize,
+    pub semaphore: Arc<Semaphore>,
 }
