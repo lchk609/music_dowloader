@@ -10,6 +10,7 @@ use tokio::sync::mpsc;
 use yt_dlp::Downloader;
 use yt_dlp::events::{DownloadEvent, EventFilter, EventHook, HookResult};
 use sanitize_filename::sanitize;
+use yt_dlp::prelude::Error;
 
 pub struct MusicDownloader {
     downloader_base: DownloaderBase,
@@ -74,12 +75,12 @@ impl MusicDownloader {
             return Ok(());
         }
 
-        let hook = MusicDownloadEvent::new(Arc::clone(&event_tx), sanitize(video_infos.title.clone()));
+        let hook: MusicDownloadEvent = MusicDownloadEvent::new(Arc::clone(&event_tx), sanitize(video_infos.title.clone()));
         downloader.register_hook(hook.clone()).await;
 
-        let downloader = Arc::new(downloader);
-        let downloader_for_events = Arc::clone(&downloader);
-        let hook_for_events = hook.clone();
+        let downloader: Arc<Downloader> = Arc::new(downloader);
+        let downloader_for_events: Arc<Downloader> = Arc::clone(&downloader);
+        let hook_for_events: MusicDownloadEvent = hook.clone();
 
         tokio::spawn(async move {
             let mut rx = downloader_for_events.subscribe_events();
@@ -92,12 +93,34 @@ impl MusicDownloader {
 
         let output_path = format!("{}.webm", sanitize(&video_infos.title));
 
-        let _ = downloader
-            .download(&video_infos, output_path)
+        println!("start downloading {}", output_path.clone());
+
+        let ouput_result: Result<PathBuf, yt_dlp::prelude::Error> = downloader
+            .download(&video_infos, output_path.clone())
             .audio_quality(yt_dlp::model::AudioQuality::Best)
             .audio_codec(self.downloader_base.codec_preference.to_yt_dlp_codec())
             .execute_audio_stream()
             .await;
+
+        match ouput_result {
+            Ok(_) => println!(""),
+            Err(err ) => {
+                match err {
+                    Error::FormatNotAvailable {format_type, available_formats, ..} => {
+                        println!("Download failed. format Type : {:?}", format_type);
+                        println!("available formats: {:?}", available_formats);
+                        let _: Result<PathBuf, yt_dlp::prelude::Error> = downloader
+                        .download(&video_infos, output_path)
+                        .audio_quality(yt_dlp::model::AudioQuality::Best)
+                        .audio_codec(self.downloader_base.codec_preference.to_yt_dlp_codec())
+                        .execute_audio_stream()
+                        .await;
+                    },
+                    _ => {}
+
+                };
+            }
+        }
 
         self.convert_audio(sanitize(video_infos.title).as_str()).await?;
 
@@ -123,6 +146,8 @@ impl MusicDownloader {
         println!("Converting audio from {:?} to {:?}", input, output);
         let ffmpeg_args = match self.downloader_base.codec_preference {
             CodecPreference::MP3 => vec![
+                "-loglevel",
+                "error",
                 "-i",
                 input.to_str().unwrap(),
                 "-f",

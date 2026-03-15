@@ -7,6 +7,7 @@ use crate::ui::components::{download_button, playlist};
 use crate::{App, Song};
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use tokio::sync::Semaphore;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
@@ -22,30 +23,10 @@ async fn load_music_on_opening(
     app: &App,
     output_dir: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut entries: tokio::fs::ReadDir = tokio::fs::read_dir(output_dir).await?;
-
-    let mut song_files: Vec<MusicFile> = Vec::new();
-
-    while let Some(entry) = entries.next_entry().await? {
-        let path = entry.path();
-        if path.is_file() {
-            if let Some(extension) = path.extension() {
-                if extension == "mp3" || extension == "flac" || extension == "wav" {
-                    let title: String = path
-                        .file_stem()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_string();
-                    let date_added = entry
-                        .metadata()
-                        .await?
-                        .created()
-                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-                    song_files.push(MusicFile { title, date_added });
-                }
-            }
-        }
-    }
+    let mut song_files: Vec<MusicFile> = match collect_music_files(output_dir).await {
+        Ok(songs) => songs,
+        Err(_) => Vec::new()
+    };
 
     song_files.sort_by(|a, b| b.date_added.cmp(&a.date_added));
 
@@ -60,6 +41,40 @@ async fn load_music_on_opening(
     app.set_songs(ModelRc::new(VecModel::from(songs)));
 
     Ok(())
+}
+
+async fn collect_music_files(dir: PathBuf) -> Result<Vec<MusicFile>, Box<dyn std::error::Error>> {
+    let mut song_files = Vec::new();
+    let mut stack = VecDeque::new();
+    stack.push_back(dir);
+
+    while let Some(current_dir) = stack.pop_front() {
+        let mut entries = fs::read_dir(&current_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push_back(path);
+            } else if path.is_file() {
+                if let Some(extension) = path.extension() {
+                    if extension == "mp3" || extension == "flac" || extension == "wav" {
+                        let title = path
+                            .file_stem()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
+                        let date_added = entry
+                            .metadata()
+                            .await?
+                            .created()
+                            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                        song_files.push(MusicFile { title, date_added });
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(song_files)
 }
 
 async fn load_playlists_on_opening(
