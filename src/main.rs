@@ -18,6 +18,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let downloader_base: DownloaderBase = setup::setup_dowloader().await?;
     let app: App = App::new().unwrap();
+    app.window().set_size(slint::PhysicalSize::new(800, 600));
     setup::setup_gui(&app, downloader_base).await?;
 
     app.run().unwrap();

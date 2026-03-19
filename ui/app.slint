@@ -4,12 +4,14 @@ import { Sidebar } from "components/side-bar.slint";
 import { AddPlaylist } from "components/add-playlist-dialog.slint";
 
 export component App inherits Window {
+    preferred-width: 1000px;
     min-width: 1000px;
-    min-height: 650px;
+    min-height: 1000px;
     title: "Music Downloader";
 
     callback download_clicked(string);
     callback add_playlist(string, string);
+    callback select_playlist(string);
 
     in-out property <string> url: "";
     in-out property <[string]> playlists: [];
@@ -24,12 +26,17 @@ export component App inherits Window {
     HorizontalBox {
         spacing: 20px;
         padding: 20px;
+        width: 100%;
+        min-width: 2000px;
 
         Sidebar {
             playlists: root.playlists;
             open_add_playlist_dialog() => {
                 add-playlist-popup.visible = true;
-            }
+            };
+            playlist_selected(playlist_id) => {
+                select_playlist(playlist_id)
+            };
         }
 
         VerticalBox {

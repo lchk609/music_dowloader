@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use tokio::sync::{mpsc};
+use tokio::sync::mpsc;
 use yt_dlp::{Downloader, model::playlist::Playlist};
 
 use crate::{
@@ -15,9 +15,7 @@ pub struct PlaylistDownloader {
 
 impl PlaylistDownloader {
     pub fn new(downloader_base: DownloaderBase) -> Self {
-        Self {
-            downloader_base,
-        }
+        Self { downloader_base }
     }
 
     pub async fn download_playlist(
@@ -49,11 +47,9 @@ impl PlaylistDownloader {
 
         for video in playlist_infos.entries {
             let downloader_clone = Arc::clone(&downloader);
-            let semaphore_clone = Arc::clone(&self.downloader_base.semaphore);
             let tx_clone = Arc::clone(&event_tx);
+            let _ = self.downloader_base.semaphore.acquire().await;
             tokio::spawn(async move {
-                let _ = semaphore_clone.acquire().await;
-
                 if let Err(err) = downloader_clone
                     .download_audio_stream_with_hooks(&video.url, tx_clone)
                     .await
