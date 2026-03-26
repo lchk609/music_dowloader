@@ -35,7 +35,7 @@ impl Playlists {
 
     pub async fn manage_playlist(&self) {
         if let Some(app) = self.app.as_weak().upgrade() {
-            let tx = self.tx.clone();
+            let tx = Arc::clone(&self.tx);
             app.on_add_playlist({
                 let playlist_downloader = Arc::clone(&self.playlist_downloader);
                 let app = app.as_weak();
@@ -44,7 +44,7 @@ impl Playlists {
                     let playlist_name_for_config = playlist_name.clone().to_string();
                     let playlist_url_for_config = playlist_url.clone().to_string();
                     let playlist_downloader = Arc::clone(&playlist_downloader);
-                    let tx = tx.clone();
+                    let tx = Arc::clone(&tx);
                     let app = app.clone();
                     let shared_config: Arc<Mutex<Config>> = Arc::clone(&shared_config);
                     tokio::spawn({
@@ -75,27 +75,34 @@ impl Playlists {
                         }
                     }});
 
-                    // tokio::spawn(async move {
-                    //     let _ = playlist_downloader
-                    //         .download_playlist(
-                    //             &playlist_url.to_string(),
-                    //             playlist_name.to_string().as_str(),
-                    //             tx.clone(),
-                    //         )
-                    //         .await;
-                    // });
+                    tokio::spawn(async move {
+                        let _ = playlist_downloader
+                            .download_playlist(
+                                &playlist_url.to_string(),
+                                playlist_name.to_string().as_str(),
+                                Arc::clone(&tx),
+                            )
+                            .await;
+                    });
                 }
             });
 
             app.on_refresh_playlist({
                 let playlist_downloader = Arc::clone(&self.playlist_downloader);
+                let tx = Arc::clone(&self.tx);
                 move |playlist_id: SharedString| {
+                    println!("playlist to refresh : {}", playlist_id);
                     let playlist_downloader = Arc::clone(&playlist_downloader);
-
-                    // tokio::spawn(async move || {
-
-                    // });
-                    // println!("refresh this playlist {}", playlist_id);
+                    let tx = Arc::clone(&tx);
+                    tokio::spawn(
+                        async move {
+                        if let Ok(uuid) = Uuid::from_str(playlist_id.as_str()) {
+                            let _ = playlist_downloader.refresh_playlist(uuid, Arc::clone(&tx)).await;
+                        } else {
+                            println!("playlist id : {}", playlist_id);
+                            println!("Can't refresh the playlist");
+                        }
+                    });
                 }
             });
 
