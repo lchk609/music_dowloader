@@ -1,4 +1,6 @@
-use slint::{Model, ModelRc, SharedString, VecModel, Weak};
+use std::sync::Arc;
+
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel, Weak};
 use tokio::sync::mpsc::UnboundedReceiver;
 use yt_dlp::events::DownloadEvent;
 
@@ -13,10 +15,11 @@ impl ItemManagement {
         Self { rx }
     }
 
-    pub fn start_listening(mut self, app: Weak<App>) {
+    pub fn start_listening(mut self, app: Arc<App>) {
+        let app_weak = app.as_weak();
         tokio::spawn(async move {
             while let Some(event) = self.rx.recv().await {
-                let app_clone = app.clone();
+                let app_clone = app_weak.clone();
                 slint::invoke_from_event_loop(move || {
                     if let Some(app) = app_clone.upgrade() {
                         match event.download_event {

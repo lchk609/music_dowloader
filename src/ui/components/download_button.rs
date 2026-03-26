@@ -14,7 +14,7 @@ pub struct DownloadButton {
 
 impl DownloadButton {
     pub fn new(
-        app: &App,
+        app: Arc<App>,
         downloader_base: DownloaderBase,
         tx: Arc<UnboundedSender<CustomDownloadEvent>>,
     ) -> Self {

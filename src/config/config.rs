@@ -3,6 +3,7 @@ use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::fs;
+use uuid::Uuid;
 
 use crate::enums::codec::CodecPreference;
 
@@ -16,6 +17,7 @@ pub struct Config {
 
 #[derive(Serialize, Debug, Deserialize, Clone, Default)]
 pub struct PlaylistInfo {
+    pub id: Uuid,
     pub url: String,
     pub name: String,
     #[serde(default)]
@@ -56,15 +58,29 @@ impl Config {
 
     pub async fn update_playlist(
         &mut self,
-        playlist_url: String,
-        playlist_name: String,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        self.playlists.push(PlaylistInfo {
-            url: playlist_url,
-            name: playlist_name,
+        playlist_url: &str,
+        playlist_name: &str,
+    ) -> Result<Uuid, Box<dyn std::error::Error>> {
+        let uuid: Uuid = Uuid::new_v4();
+        let new_playlist = PlaylistInfo {
+            id: Uuid::new_v4(),
+            url: playlist_url.to_string(),  
+            name: playlist_name.to_string(),
             last_updated: Utc::now(),
-        });
-        self.save().await
+        };
+
+        self.playlists.push(new_playlist);
+        self.save().await?;
+        Ok(uuid)
+    }
+
+    pub async fn remove_playlist(
+        &mut self,
+        playlist_id: Uuid,
+    ) -> Result<Uuid, Box<dyn std::error::Error>> {
+        self.playlists.retain(|item| item.id != playlist_id.clone());
+        self.save().await?;
+        Ok(playlist_id)
     }
 }
 

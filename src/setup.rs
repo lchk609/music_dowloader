@@ -4,13 +4,13 @@ use crate::dowloaders::music::MusicDownloader;
 use crate::events::download_events::CustomDownloadEvent;
 use crate::ui::components::song_item::ItemManagement;
 use crate::ui::components::{download_button, playlist};
-use crate::{App, Song};
-use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
-use tokio::sync::Semaphore;
+use crate::{App, Playlist, Song};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, ToSharedString, VecModel};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
+use tokio::sync::Semaphore;
 use tokio::sync::mpsc::unbounded_channel;
 use yt_dlp::client::Libraries;
 
@@ -20,12 +20,12 @@ struct MusicFile {
 }
 
 async fn load_music_on_opening(
-    app: &App,
+    app: Arc<App>,
     output_dir: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut song_files: Vec<MusicFile> = match collect_music_files(output_dir).await {
         Ok(songs) => songs,
-        Err(_) => Vec::new()
+        Err(_) => Vec::new(),
     };
 
     song_files.sort_by(|a, b| b.date_added.cmp(&a.date_added));
@@ -78,13 +78,16 @@ async fn collect_music_files(dir: PathBuf) -> Result<Vec<MusicFile>, Box<dyn std
 }
 
 async fn load_playlists_on_opening(
-    app: &App,
+    app: Arc<App>,
     config: &Config,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut playlists: Vec<SharedString> = Vec::new();
+    let mut playlists: Vec<Playlist> = Vec::new();
 
     for playlist_info in config.playlists.iter() {
-        playlists.push(SharedString::from(playlist_info.name.clone()));
+        playlists.push(Playlist {
+            id: playlist_info.id.to_shared_string(),
+            title: playlist_info.name.to_shared_string(),   
+        });
     }
 
     app.set_playlists(ModelRc::new(VecModel::from(playlists)));
@@ -93,25 +96,25 @@ async fn load_playlists_on_opening(
 }
 
 async fn setup_event_listiners(
-    app: &App,
+    app: Arc<App>,
     downloader_base: DownloaderBase,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (tx, rx) = unbounded_channel::<CustomDownloadEvent>();
 
-    ItemManagement::new(rx).start_listening(app.as_weak());
+    ItemManagement::new(rx).start_listening(Arc::clone(&app));
 
     let tx_arc = Arc::new(tx);
 
     let download_button =
-        download_button::DownloadButton::new(app, downloader_base.clone(), Arc::clone(&tx_arc));
+        download_button::DownloadButton::new(Arc::clone(&app), downloader_base.clone(), Arc::clone(&tx_arc));
     download_button.manage_add_music().await;
-    let playlist = playlist::Playlist::new(app, downloader_base.clone(), Arc::clone(&tx_arc));
+    let playlist = playlist::Playlists::new(Arc::clone(&app), downloader_base.clone(), Arc::clone(&tx_arc));
     playlist.manage_playlist().await;
     Ok(())
 }
 
 pub async fn setup_gui(
-    app: &App,
+    app: Arc<App>,
     downloader_base: DownloaderBase,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config: Config = Config::load().await?;
@@ -123,9 +126,9 @@ pub async fn setup_gui(
 
     get_or_create_output_dir(music_path.to_string_lossy().to_string(), &config).await?;
 
-    load_music_on_opening(app, music_path).await?;
-    load_playlists_on_opening(app, &config).await?;
-    setup_event_listiners(app, downloader_base).await?;
+    load_music_on_opening(Arc::clone(&app), music_path).await?;
+    load_playlists_on_opening(Arc::clone(&app), &config).await?;
+    setup_event_listiners(Arc::clone(&app), downloader_base).await?;
 
     Ok(())
 }
@@ -151,7 +154,7 @@ pub async fn setup_dowloader() -> Result<DownloaderBase, Box<dyn std::error::Err
         libraries,
         codec_preference: config.codec,
         output_dir,
-        semaphore: Arc::new(Semaphore::new(config.max_concurrent_downloads))
+        semaphore: Arc::new(Semaphore::new(config.max_concurrent_downloads)),
     };
 
     let music_downloader: MusicDownloader = MusicDownloader::new(downlader_base.clone());

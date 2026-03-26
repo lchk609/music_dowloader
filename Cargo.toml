@@ -20,6 +20,7 @@ threadpool = "1.8.1"
 tokio = "1.49.0"
 tracing = { version = "0.1.44", optional = true}
 tracing-subscriber = {version = "0.3", optional = true}
+uuid = "1.22.0"
 yt-dlp = { version = "2.6.0", features = ["hooks"] }
 
 [build-dependencies]

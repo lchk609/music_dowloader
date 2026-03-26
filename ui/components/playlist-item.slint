@@ -1,8 +1,7 @@
 import { HorizontalBox } from "std-widgets.slint";
-
+import { Playlist } from "../structs/playlist.slint";
 export component PlaylistItem inherits Rectangle {
-    in property <string> title;
-    in property <string> id;
+    in property <Playlist> playlist;
     callback manage_playlist_display(string);
     callback refresh_playlist(string);
     callback delete_playlist(string);
@@ -12,19 +11,20 @@ export component PlaylistItem inherits Rectangle {
     border-color: #444;
     border-radius: 12px;
 
-    TouchArea {
-        width: parent.width;
-        height: parent.height;
-    }
+    // TouchArea {
+    //     width: parent.width;
+    //     height: parent.height;
+    // }
 
-    HorizontalLayout {
-        height: 50px;
+
+    HorizontalBox {
+        height: 100%;
+        spacing: 10px;
         padding-left: 12px;
 
         Text {
             width: 60%;
-            height: 100%;
-            text: title;
+            text: playlist.title;
             vertical-alignment: center;
             horizontal-alignment: left;
             overflow: elide;
@@ -58,7 +58,7 @@ export component PlaylistItem inherits Rectangle {
                     height: 100%;
                     mouse-cursor: pointer;
                     clicked => {
-                        root.refresh_playlist(id);
+                        root.refresh_playlist(playlist.id);
                     }
                 }
             }
@@ -86,7 +86,7 @@ export component PlaylistItem inherits Rectangle {
                     height: 100%;
                     mouse-cursor: pointer;
                     clicked => {
-                        root.delete_playlist(id);
+                        root.delete_playlist(playlist.id);
                     }
                 }
             }

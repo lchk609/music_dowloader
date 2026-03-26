@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use dowloaders::music::MusicDownloader;
 
 use crate::dowloaders::dowloader_base::DownloaderBase;
@@ -17,9 +19,9 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing_subscriber::fmt::init();
     }
     let downloader_base: DownloaderBase = setup::setup_dowloader().await?;
-    let app: App = App::new().unwrap();
+    let app: Arc<App>  = Arc::new(App::new().unwrap());
     app.window().set_size(slint::PhysicalSize::new(800, 600));
-    setup::setup_gui(&app, downloader_base).await?;
+    setup::setup_gui(Arc::clone(&app), downloader_base).await?;
 
     app.run().unwrap();
 
