@@ -76,11 +76,13 @@ impl Playlists {
                     }});
 
                     tokio::spawn(async move {
+                        let config: tokio::sync::MutexGuard<'_, Config>  = shared_config.lock().await;
                         let _ = playlist_downloader
                             .download_playlist(
                                 &playlist_url.to_string(),
                                 playlist_name.to_string().as_str(),
                                 Arc::clone(&tx),
+                                config.max_concurrent_downloads
                             )
                             .await;
                     });

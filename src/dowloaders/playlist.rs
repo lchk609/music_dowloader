@@ -1,5 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
+use futures::stream::{self, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 use yt_dlp::{Downloader, model::playlist::Playlist};
@@ -24,6 +25,7 @@ impl PlaylistDownloader {
         playlist_url: &str,
         playlist_name: &str,
         event_tx: Arc<mpsc::UnboundedSender<CustomDownloadEvent>>,
+        concurrency: usize
     ) -> Result<(), Box<dyn std::error::Error>> {
         let downloader = Downloader::builder(
             self.downloader_base.libraries.clone(),
@@ -46,19 +48,22 @@ impl PlaylistDownloader {
         let downloader: Arc<MusicDownloader> =
             Arc::new(MusicDownloader::new(new_dowloader_base.clone()));
 
-        for video in playlist_infos.entries {
-            let downloader_clone = Arc::clone(&downloader);
-            let tx_clone = Arc::clone(&event_tx);
-            let _ = self.downloader_base.semaphore.acquire().await;
-            tokio::spawn(async move {
-                if let Err(err) = downloader_clone
-                    .download_audio_stream_with_hooks(&video.url, tx_clone)
-                    .await
-                {
-                    eprintln!("download failed, err : {:?}", err);
+        stream::iter(playlist_infos.entries)
+            .map(|video| {
+                let downloader = Arc::clone(&downloader);
+                let tx = Arc::clone(&event_tx);
+                async move {
+                    if let Err(err) = downloader
+                        .download_audio_stream_with_hooks(&video.url, tx)
+                        .await
+                    {
+                        eprintln!("download failed: {:?}", err);
+                    }
                 }
-            });
-        }
+            })
+            .buffer_unordered(concurrency)
+            .collect::<Vec<_>>()
+            .await;
 
         Ok(())
     }
@@ -72,7 +77,7 @@ impl PlaylistDownloader {
             self.downloader_base.config.lock().await;
 
         if let Some(playlist) = config.playlists.iter().find(|item| item.id == playlist_id) {
-            self.download_playlist(&playlist.url, &playlist.name, event_tx)
+            self.download_playlist(&playlist.url, &playlist.name, event_tx, config.max_concurrent_downloads)
                 .await?;
         };
 
