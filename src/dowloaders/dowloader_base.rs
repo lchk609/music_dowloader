@@ -1,8 +1,8 @@
 use std::{path::PathBuf, sync::Arc};
-use tokio::sync::Semaphore;
+use tokio::sync::{Mutex, Semaphore};
 use yt_dlp::client::Libraries;
 
-use crate::enums::codec::CodecPreference;
+use crate::{config::config::Config, enums::codec::CodecPreference};
 
 #[derive(Clone, Debug)]
 pub struct DownloaderBase {
@@ -10,4 +10,5 @@ pub struct DownloaderBase {
     pub codec_preference: CodecPreference,
     pub output_dir: PathBuf,
     pub semaphore: Arc<Semaphore>,
+    pub config: Arc<Mutex<Config>>,
 }

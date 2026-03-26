@@ -15,10 +15,11 @@ pub struct Playlists {
     app: Arc<App>,
     playlist_downloader: Arc<PlaylistDownloader>,
     tx: Arc<UnboundedSender<CustomDownloadEvent>>,
+    config: Arc<Mutex<Config>>
 }
 
 impl Playlists {
-    pub fn new(
+    pub async fn new(
         app: Arc<App>,
         downloader_base: DownloaderBase,
         tx: Arc<UnboundedSender<CustomDownloadEvent>>,
@@ -28,17 +29,17 @@ impl Playlists {
             app: app,
             playlist_downloader,
             tx,
+            config: Arc::new(Mutex::new(Config::load().await.unwrap_or_default()))
         }
     }
 
     pub async fn manage_playlist(&self) {
-        let shared_config: Arc<Mutex<Config>>  = Arc::new(Mutex::new(Config::load().await.unwrap_or_default()));
         if let Some(app) = self.app.as_weak().upgrade() {
             let tx = self.tx.clone();
             app.on_add_playlist({
                 let playlist_downloader = Arc::clone(&self.playlist_downloader);
                 let app = app.as_weak();
-                let shared_config: Arc<Mutex<Config>> = Arc::clone(&shared_config);
+                let shared_config: Arc<Mutex<Config>> = Arc::clone(&self.config);
                 move |playlist_name: SharedString, playlist_url: SharedString| {
                     let playlist_name_for_config = playlist_name.clone().to_string();
                     let playlist_url_for_config = playlist_url.clone().to_string();
@@ -87,14 +88,20 @@ impl Playlists {
             });
 
             app.on_refresh_playlist({
+                let playlist_downloader = Arc::clone(&self.playlist_downloader);
                 move |playlist_id: SharedString| {
-                    println!("refresh this playlist {}", playlist_id);
+                    let playlist_downloader = Arc::clone(&playlist_downloader);
+
+                    // tokio::spawn(async move || {
+
+                    // });
+                    // println!("refresh this playlist {}", playlist_id);
                 }
             });
 
             app.on_delete_playlist({
                 let app: App = app.clone_strong();
-                let shared_config: Arc<Mutex<Config>> = Arc::clone(&shared_config);
+                let shared_config: Arc<Mutex<Config>> = Arc::clone(&self.config);
                 move |playlist_id: SharedString| {
                     let app_weak = app.as_weak();
                     let shared_config: Arc<Mutex<Config>> = Arc::clone(&shared_config);
@@ -102,7 +109,7 @@ impl Playlists {
                         let shared_config = Arc::clone(&shared_config);
                         let playlist_id = playlist_id.clone();
                         async move {
-                        let mut config: tokio::sync::MutexGuard<'_, Config>  = shared_config.lock().await;  
+                        let mut config: tokio::sync::MutexGuard<'_, Config>  = shared_config.lock().await;
                         if let Ok(uuid) = Uuid::from_str(playlist_id.as_str()) {
                             match config.remove_playlist(uuid).await {
                                 Ok(playlist_id) => {
@@ -115,7 +122,6 @@ impl Playlists {
                                                     item.id == playlist_id.to_shared_string()
                                                 })
                                                 .unwrap();
-                                            println!("playlist_id : {}", playlist.id);
                                             manage_playlist_layout(app.as_weak(), playlist, false);
                                         } else {
                                             println!("app déjà détruite");
@@ -140,13 +146,11 @@ fn manage_playlist_layout(app: Weak<App>, playlist: Playlist, add_playlist: bool
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(app) = app_clone.upgrade() {
             if add_playlist {
-                println!("add an item to playlist");
                 let playlists: ModelRc<crate::Playlist> = app.get_playlists();
                 let mut playlists_vec: Vec<crate::Playlist> = playlists.iter().collect::<Vec<_>>();
                 playlists_vec.push(playlist);
                 app.set_playlists(ModelRc::new(VecModel::from(playlists_vec)));
             } else {
-                println!("remove an item to playlist");
                 let playlists: ModelRc<crate::Playlist> = app.get_playlists();
                 let mut playlists_vec: Vec<crate::Playlist> = playlists.iter().collect::<Vec<_>>();
                 playlists_vec.retain(|item| item.id != playlist.id);

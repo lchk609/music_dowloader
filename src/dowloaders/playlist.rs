@@ -2,6 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use tokio::sync::mpsc;
 use yt_dlp::{Downloader, model::playlist::Playlist};
+use uuid::Uuid;
 
 use crate::{
     dowloaders::{dowloader_base::DownloaderBase, music::MusicDownloader},
@@ -58,6 +59,26 @@ impl PlaylistDownloader {
                 }
             });
         }
+
+        Ok(())
+    }
+
+    pub async fn refresh_playlist(&self, playlist_id: Uuid) -> Result<(), Box<dyn std::error::Error>> {
+        let downloader = Downloader::builder(
+            self.downloader_base.libraries.clone(),
+            self.downloader_base.output_dir.clone(),
+        )
+        .build()
+        .await?;
+
+        let config:tokio::sync::MutexGuard<'_, crate::config::config::Config>  = self.downloader_base.config.lock().await;
+
+        if let Some(playlist) = config.playlists.iter().find(|item| item.id == playlist_id)  {
+            
+        };
+        // println!("Fetching playlist infos for URL: {}", playlist_url);
+
+        // let playlist_infos: Playlist = downloader.fetch_playlist_infos(playlist_url).await?;
 
         Ok(())
     }

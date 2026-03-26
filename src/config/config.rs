@@ -63,7 +63,7 @@ impl Config {
     ) -> Result<Uuid, Box<dyn std::error::Error>> {
         let uuid: Uuid = Uuid::new_v4();
         let new_playlist = PlaylistInfo {
-            id: Uuid::new_v4(),
+            id: uuid,
             url: playlist_url.to_string(),  
             name: playlist_name.to_string(),
             last_updated: Utc::now(),

@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
-use tokio::sync::Semaphore;
+use tokio::sync::{Mutex, Semaphore};
 use tokio::sync::mpsc::unbounded_channel;
 use yt_dlp::client::Libraries;
 
@@ -108,7 +108,7 @@ async fn setup_event_listiners(
     let download_button =
         download_button::DownloadButton::new(Arc::clone(&app), downloader_base.clone(), Arc::clone(&tx_arc));
     download_button.manage_add_music().await;
-    let playlist = playlist::Playlists::new(Arc::clone(&app), downloader_base.clone(), Arc::clone(&tx_arc));
+    let playlist = playlist::Playlists::new(Arc::clone(&app), downloader_base.clone(), Arc::clone(&tx_arc)).await;
     playlist.manage_playlist().await;
     Ok(())
 }
@@ -155,6 +155,7 @@ pub async fn setup_dowloader() -> Result<DownloaderBase, Box<dyn std::error::Err
         codec_preference: config.codec,
         output_dir,
         semaphore: Arc::new(Semaphore::new(config.max_concurrent_downloads)),
+        config: Arc::new(Mutex::new(Config::load().await.unwrap_or_default()))
     };
 
     let music_downloader: MusicDownloader = MusicDownloader::new(downlader_base.clone());
