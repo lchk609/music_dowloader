@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel, Weak};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use tokio::sync::mpsc::UnboundedReceiver;
 use yt_dlp::events::DownloadEvent;
 

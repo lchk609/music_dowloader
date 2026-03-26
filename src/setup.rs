@@ -5,7 +5,7 @@ use crate::events::download_events::CustomDownloadEvent;
 use crate::ui::components::song_item::ItemManagement;
 use crate::ui::components::{download_button, playlist};
 use crate::{App, Playlist, Song};
-use slint::{ComponentHandle, Model, ModelRc, SharedString, ToSharedString, VecModel};
+use slint::{Model, ModelRc, SharedString, ToSharedString, VecModel};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
