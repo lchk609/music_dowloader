@@ -1,12 +1,18 @@
 use crate::config::config::Config;
-use crate::dowloaders::youtube::YoutubeDownloader;
-use crate::ui::components::download_button;
-use crate::{App, Song};
-use slint::{Model};
-use slint::{ModelRc, SharedString, VecModel};
+use crate::dowloaders::dowloader_base::DownloaderBase;
+use crate::dowloaders::music::MusicDownloader;
+use crate::events::download_events::CustomDownloadEvent;
+use crate::ui::components::song_item::ItemManagement;
+use crate::ui::components::{download_button, playlist};
+use crate::{App, Playlist, Song};
+use slint::{Model, ModelRc, SharedString, ToSharedString, VecModel};
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
+use tokio::sync::{Mutex, Semaphore};
+use tokio::sync::mpsc::unbounded_channel;
+use yt_dlp::client::Libraries;
 
 struct MusicFile {
     title: String,
@@ -14,33 +20,13 @@ struct MusicFile {
 }
 
 async fn load_music_on_opening(
-    app: &App,
+    app: Arc<App>,
     output_dir: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut entries: tokio::fs::ReadDir = tokio::fs::read_dir(output_dir).await?;
-
-    let mut song_files: Vec<MusicFile> = Vec::new();
-
-    while let Some(entry) = entries.next_entry().await? {
-        let path = entry.path();
-        if path.is_file() {
-            if let Some(extension) = path.extension() {
-                if extension == "mp3" || extension == "flac" || extension == "wav" {
-                    let title: String = path
-                        .file_stem()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_string();
-                    let date_added = entry
-                        .metadata()
-                        .await?
-                        .created()
-                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-                    song_files.push(MusicFile { title, date_added });
-                }
-            }
-        }
-    }
+    let mut song_files: Vec<MusicFile> = match collect_music_files(output_dir).await {
+        Ok(songs) => songs,
+        Err(_) => Vec::new(),
+    };
 
     song_files.sort_by(|a, b| b.date_added.cmp(&a.date_added));
 
@@ -57,18 +43,79 @@ async fn load_music_on_opening(
     Ok(())
 }
 
-async fn setup_event_listiners(
-    app: &App,
-    youtube_downloader: Arc<YoutubeDownloader>,
+async fn collect_music_files(dir: PathBuf) -> Result<Vec<MusicFile>, Box<dyn std::error::Error>> {
+    let mut song_files = Vec::new();
+    let mut stack = VecDeque::new();
+    stack.push_back(dir);
+
+    while let Some(current_dir) = stack.pop_front() {
+        let mut entries = fs::read_dir(&current_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push_back(path);
+            } else if path.is_file() {
+                if let Some(extension) = path.extension() {
+                    if extension == "mp3" || extension == "flac" || extension == "wav" {
+                        let title = path
+                            .file_stem()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
+                        let date_added = entry
+                            .metadata()
+                            .await?
+                            .created()
+                            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                        song_files.push(MusicFile { title, date_added });
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(song_files)
+}
+
+async fn load_playlists_on_opening(
+    app: Arc<App>,
+    config: &Config,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let download_button = download_button::DownloadButton::new(app, youtube_downloader.clone());
+    let mut playlists: Vec<Playlist> = Vec::new();
+
+    for playlist_info in config.playlists.iter() {
+        playlists.push(Playlist {
+            id: playlist_info.id.to_shared_string(),
+            title: playlist_info.name.to_shared_string(),   
+        });
+    }
+
+    app.set_playlists(ModelRc::new(VecModel::from(playlists)));
+
+    Ok(())
+}
+
+async fn setup_event_listiners(
+    app: Arc<App>,
+    downloader_base: DownloaderBase,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (tx, rx) = unbounded_channel::<CustomDownloadEvent>();
+
+    ItemManagement::new(rx).start_listening(Arc::clone(&app));
+
+    let tx_arc = Arc::new(tx);
+
+    let download_button =
+        download_button::DownloadButton::new(Arc::clone(&app), downloader_base.clone(), Arc::clone(&tx_arc));
     download_button.manage_add_music().await;
+    let playlist = playlist::Playlists::new(Arc::clone(&app), downloader_base.clone(), Arc::clone(&tx_arc)).await;
+    playlist.manage_playlist().await;
     Ok(())
 }
 
 pub async fn setup_gui(
-    app: &App,
-    youtube_downloader: Arc<YoutubeDownloader>,
+    app: Arc<App>,
+    downloader_base: DownloaderBase,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config: Config = Config::load().await?;
 
@@ -77,15 +124,16 @@ pub async fn setup_gui(
         None => PathBuf::new(),
     };
 
-    get_or_create_output_dir(music_path.to_string_lossy().to_string(), config).await?;
+    get_or_create_output_dir(music_path.to_string_lossy().to_string(), &config).await?;
 
-    load_music_on_opening(app, music_path).await?;
-    setup_event_listiners(app, youtube_downloader).await?;
+    load_music_on_opening(Arc::clone(&app), music_path).await?;
+    load_playlists_on_opening(Arc::clone(&app), &config).await?;
+    setup_event_listiners(Arc::clone(&app), downloader_base).await?;
 
     Ok(())
 }
 
-pub async fn setup_dowloader() -> Result<YoutubeDownloader, Box<dyn std::error::Error>> {
+pub async fn setup_dowloader() -> Result<DownloaderBase, Box<dyn std::error::Error>> {
     let config: Config = Config::load().await?;
 
     let output_dir: PathBuf = match config.saved_directory.clone() {
@@ -93,16 +141,31 @@ pub async fn setup_dowloader() -> Result<YoutubeDownloader, Box<dyn std::error::
         None => PathBuf::new(),
     };
 
-    get_or_create_output_dir(output_dir.to_string_lossy().to_string(), config.clone()).await?;
+    get_or_create_output_dir(output_dir.to_string_lossy().to_string(), &config).await?;
 
-    let youtube_downloader: YoutubeDownloader = YoutubeDownloader::new(output_dir, config.codec, config.max_concurrent_downloads).await;
-    youtube_downloader.download_tools().await?;
-    Ok(youtube_downloader)
+    let libraries_dir = PathBuf::from("libs");
+
+    let youtube = libraries_dir.join("yt-dlp");
+    let ffmpeg = libraries_dir.join("ffmpeg");
+
+    let libraries = Libraries::new(youtube, ffmpeg);
+
+    let downlader_base = DownloaderBase {
+        libraries,
+        codec_preference: config.codec,
+        output_dir,
+        semaphore: Arc::new(Semaphore::new(config.max_concurrent_downloads)),
+        config: Arc::new(Mutex::new(Config::load().await.unwrap_or_default()))
+    };
+
+    let music_downloader: MusicDownloader = MusicDownloader::new(downlader_base.clone());
+    music_downloader.download_tools().await?;
+    Ok(downlader_base)
 }
 
 async fn get_or_create_output_dir(
     mut path: String,
-    config: Config,
+    config: &Config,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let user_home: PathBuf = match directories::UserDirs::new() {
         Some(path_home) => path_home.home_dir().to_path_buf(),
@@ -123,7 +186,7 @@ async fn get_or_create_output_dir(
 
     Config {
         saved_directory: Some(output_dir.clone()),
-        ..config
+        ..config.clone()
     }
     .save()
     .await?;
