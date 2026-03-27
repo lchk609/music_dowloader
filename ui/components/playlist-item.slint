@@ -1,10 +1,8 @@
 import { HorizontalBox } from "std-widgets.slint";
 import { Playlist } from "../structs/playlist.slint";
+import { AppLogic } from "../globals/callbacks.slint";
 export component PlaylistItem inherits Rectangle {
     in property <Playlist> playlist;
-    callback manage_playlist_display(string);
-    callback refresh_playlist(string);
-    callback delete_playlist(string);
 
     height: 50px;
     border-width: 2px;
@@ -58,7 +56,7 @@ export component PlaylistItem inherits Rectangle {
                     height: 100%;
                     mouse-cursor: pointer;
                     clicked => {
-                        root.refresh_playlist(playlist.id);
+                        AppLogic.refresh_playlist(playlist.id);
                     }
                 }
             }
@@ -86,7 +84,7 @@ export component PlaylistItem inherits Rectangle {
                     height: 100%;
                     mouse-cursor: pointer;
                     clicked => {
-                        root.delete_playlist(playlist.id);
+                        AppLogic.delete_playlist(playlist.id);
                     }
                 }
             }

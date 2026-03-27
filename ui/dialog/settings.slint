@@ -1,0 +1,101 @@
+import {
+    Button,
+    LineEdit,
+    HorizontalBox,
+    ComboBox,
+    VerticalBox,
+} from "std-widgets.slint";
+import { Settings } from "../structs/settings.slint";
+   
+    
+export component SettingDialog inherits Dialog {
+    in-out property <Settings> settings;
+    title: "Settings";
+    z: 100;
+    width: 50%;
+    height: 50%;
+    visible: false;
+
+    VerticalLayout {
+        spacing: 10px;
+
+        VerticalBox {
+            height: 50px;
+
+            Text {
+                text: "Music directory";
+            }
+
+            HorizontalBox {
+                height: 40px;
+                spacing: 10px;
+                Text {
+                    //text: root.settings.save-directory;
+                    text: "test/test/test";
+                }
+
+                Button {
+                    icon: @image-url("../assets/icon-plus.svg");
+                }
+            }
+        }
+
+        VerticalBox {
+            height: 50px;
+            Text {
+                text: "Choose the maximum concurrent downloads";
+            }
+
+            ComboBox {
+                width: 100px;
+                height: 40px;
+                model: [1, 2, 3, 4, 5, 6];
+                current-value: root.settings.max-concurrent-download;
+                selected(current-value) => {
+                    root.settings.max-concurrent-download = current-value.to-float();
+                }
+            }
+        }
+
+        VerticalBox {
+            height: 50px;
+            Text {
+                text: "Choose your codec";
+            }
+
+            ComboBox {
+                width: 100px;
+                height: 40px;
+                model: ["MP3", "FLAC", "WAV", "AAC", "OGG"];
+                current-value: root.settings.codec;
+                selected(current-value) => {
+                    root.settings.codec = current-value;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 10px;
+            width: 100%;
+            // padding: 10px;
+
+            Button {
+                height: 40px;
+                width: 120px;
+                text: "Save";
+                clicked => {
+                        root.visible = false;
+                    }
+            }
+
+            Button {
+                height: 40px;
+                width: 120px;
+                text: "Cancel";
+                clicked => {
+                        root.visible = false;
+                    }
+            }
+        }
+    }
+}

@@ -1,14 +1,15 @@
 import { VerticalBox, Button, ScrollView } from "std-widgets.slint";
 import { PlaylistItem } from "playlist-item.slint";
-import { AddPlaylist } from "add-playlist-dialog.slint";
 import { Playlist } from "../structs/playlist.slint";
+import { AppLogic } from "../globals/callbacks.slint";
+import { DialogType } from "../enums/dialog-type.slint";
+import { AddPlaylist } from "../dialog/add-playlist.slint";
+import { SettingDialog } from "../dialog/settings.slint";
+
 export component Sidebar inherits Rectangle {
     in property <[Playlist]> playlists;
     in property <string> name;
-    callback open_add_playlist_dialog();
-    callback playlist_selected(string);
-    callback refresh_playlist(string);
-    callback delete_playlist(string);
+    callback open_dialog(DialogType);
 
     width: 300px;
     border-width: 2px;
@@ -31,7 +32,7 @@ export component Sidebar inherits Rectangle {
             icon-size: 16px;
 
             clicked => {
-                root.open_add_playlist_dialog();
+                open_dialog(DialogType.CreatePlaylist)
             }
         }
 
@@ -42,15 +43,6 @@ export component Sidebar inherits Rectangle {
 
                 for pl in playlists : PlaylistItem {
                     playlist: pl;
-                    manage_playlist_display(playlist_id) => {
-                        playlist_selected(playlist_id);
-                    }
-                    refresh_playlist(playlist_id) => {
-                        refresh_playlist(playlist_id);
-                    }
-                    delete_playlist(playlist_id) => {
-                        delete_playlist(playlist_id);
-                    }
                 }
             }
         }
@@ -58,6 +50,10 @@ export component Sidebar inherits Rectangle {
         Button {
             text: "settings";
             height: 40px;
+
+            clicked => {
+                open_dialog(DialogType.Settings)
+            }
         }
     }
 }

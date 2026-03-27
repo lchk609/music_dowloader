@@ -1,8 +1,17 @@
-import { VerticalBox, HorizontalBox, ScrollView, Button, LineEdit } from "std-widgets.slint";
+import {
+    VerticalBox,
+    HorizontalBox,
+    ScrollView,
+    Button,
+    LineEdit,
+} from "std-widgets.slint";
 import { SongItem, Song } from "components/song-item.slint";
 import { Sidebar } from "components/side-bar.slint";
-import { AddPlaylist } from "components/add-playlist-dialog.slint";
+import { AddPlaylist } from "dialog/add-playlist.slint";
+import { SettingDialog } from "dialog/settings.slint";
 import { Playlist } from "structs/playlist.slint";
+import { AppLogic } from "globals/callbacks.slint";
+import { DialogType } from "enums/dialog-type.slint";
 
 export component App inherits Window {
     preferred-width: 1000px;
@@ -10,19 +19,22 @@ export component App inherits Window {
     min-height: 1000px;
     title: "Music Downloader";
 
-    callback download_clicked(string);
-    callback add_playlist(string, string);
-    callback select_playlist(string);
-    callback refresh_playlist(string);
-    callback delete_playlist(string);
-
     in-out property <string> url: "";
     in-out property <[Playlist]> playlists: [];
     in-out property <[Song]> songs: [];
+    callback open_dialog(DialogType);
 
-    add-playlist-popup := AddPlaylist {
-        add_playlist(name, url) => {
-            root.add_playlist(name, url);
+    add-playlist-popup := AddPlaylist { }
+
+    setting-dialog := SettingDialog { }
+
+    open_dialog(dialog) => {
+        if (dialog == DialogType.Settings) {
+            setting-dialog.visible = true;
+            add-playlist-popup.visible = false;
+        } else if (dialog == DialogType.CreatePlaylist) {
+            add-playlist-popup.visible = true;
+            setting-dialog.visible = false;
         }
     }
 
@@ -34,17 +46,8 @@ export component App inherits Window {
 
         Sidebar {
             playlists: root.playlists;
-            open_add_playlist_dialog() => {
-                add-playlist-popup.visible = true;
-            };
-            playlist_selected(playlist_id) => {
-                select_playlist(playlist_id)
-            };
-            refresh_playlist(playlist_id) => {
-                refresh_playlist(playlist_id)
-            }
-            delete_playlist(playlist_id) => {
-                delete_playlist(playlist_id)
+            open_dialog(dialog) => {
+                open_dialog(dialog);
             }
         }
 
@@ -59,9 +62,9 @@ export component App inherits Window {
                     horizontal-stretch: 1;
                     input-type: InputType.text;
                     height: 40px;
-                    
-                    // text: root.url;
-                    edited(value) => { root.url = value; }
+                    edited(value) => {
+                        root.url = value;
+                    }
                 }
 
                 Button {
@@ -69,9 +72,8 @@ export component App inherits Window {
                     width: 120px;
                     accessible-role: AccessibleRole.none;
                     height: 40px;
-                    
                     clicked => {
-                        root.download_clicked(root.url);
+                        AppLogic.download_clicked(root.url);
                     }
                 }
             }
@@ -83,7 +85,7 @@ export component App inherits Window {
                     spacing: 15px;
                     padding: 5px;
 
-                    for song in root.songs : SongItem {
+                    for song in root.songs: SongItem {
                         title: song.title;
                         is_downloading: song.is_downloading;
                     }
@@ -92,3 +94,5 @@ export component App inherits Window {
         }
     }
 }
+
+export { AppLogic }
