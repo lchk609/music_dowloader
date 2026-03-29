@@ -1,10 +1,8 @@
 import { HorizontalBox } from "std-widgets.slint";
 import { Playlist } from "../structs/playlist.slint";
+import { AppLogic } from "../globals/callbacks.slint";
 export component PlaylistItem inherits Rectangle {
     in property <Playlist> playlist;
-    callback manage_playlist_display(string);
-    callback refresh_playlist(string);
-    callback delete_playlist(string);
 
     height: 50px;
     border-width: 2px;
@@ -18,9 +16,8 @@ export component PlaylistItem inherits Rectangle {
 
 
     HorizontalBox {
-        height: 100%;
+        height: 50px;
         spacing: 10px;
-        padding-left: 12px;
 
         Text {
             width: 60%;
@@ -30,64 +27,58 @@ export component PlaylistItem inherits Rectangle {
             overflow: elide;
         }
 
-        HorizontalBox {
-            width: 40%;
-            height: 50px;
-            spacing: 10px;
+        Rectangle {
+            border-radius: 40px;
+            border-color: refresh.has-hover ? blue : white;
+            border-width: 1px;
+            width: 32px;
+            height: 32px;
 
-            Rectangle {
-                border-radius: 40px;
-                border-color: refresh.has-hover ? blue : white;
-                border-width: 1px;
-                width: 32px;
-                height: 32px;
+            animate border-color { duration: 150ms; }
 
-                animate border-color { duration: 150ms; }
+            Image {
+                height: 20px;
+                width: 20px;
+                source: @image-url("../assets/icon-refresh.svg");
+                colorize: refresh.has-hover ? blue : white;
 
-                Image {
-                    height: 20px;
-                    width: 20px;
-                    source: @image-url("../assets/icon-refresh.svg");
-                    colorize: refresh.has-hover ? blue : white;
-
-                    animate colorize { duration: 150ms; }
-                }
-
-                refresh := TouchArea {
-                    width: 100%;
-                    height: 100%;
-                    mouse-cursor: pointer;
-                    clicked => {
-                        root.refresh_playlist(playlist.id);
-                    }
-                }
+                animate colorize { duration: 150ms; }
             }
 
-            Rectangle {
-                border-radius: 40px;
-                border-color: delete.has-hover ? red : white;
-                border-width: 1px;
-                width: 32px;
-                height: 32px;
-
-                animate border-color { duration: 150ms; }
-
-                Image {
-                    height: 20px;
-                    width: 20px;
-                    source: @image-url("../assets/icon-bin.svg");
-                    colorize: delete.has-hover ? red : white;
-
-                    animate colorize { duration: 150ms; }
+            refresh := TouchArea {
+                width: 100%;
+                height: 100%;
+                mouse-cursor: pointer;
+                clicked => {
+                    AppLogic.refresh_playlist(playlist.id);
                 }
+            }
+        }
 
-                delete := TouchArea {
-                    width: 100%;
-                    height: 100%;
-                    mouse-cursor: pointer;
-                    clicked => {
-                        root.delete_playlist(playlist.id);
-                    }
+        Rectangle {
+            border-radius: 40px;
+            border-color: delete.has-hover ? red : white;
+            border-width: 1px;
+            width: 32px;
+            height: 32px;
+
+            animate border-color { duration: 150ms; }
+
+            Image {
+                height: 20px;
+                width: 20px;
+                source: @image-url("../assets/icon-bin.svg");
+                colorize: delete.has-hover ? red : white;
+
+                animate colorize { duration: 150ms; }
+            }
+
+            delete := TouchArea {
+                width: 100%;
+                height: 100%;
+                mouse-cursor: pointer;
+                clicked => {
+                    AppLogic.delete_playlist(playlist.id);
                 }
             }
         }

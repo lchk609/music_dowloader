@@ -1,0 +1,125 @@
+import {
+    Button,
+    LineEdit,
+    HorizontalBox,
+    ComboBox,
+    VerticalBox,
+    GroupBox,
+} from "std-widgets.slint";
+import { Settings } from "../structs/settings.slint";
+import { AppLogic } from "../globals/callbacks.slint";
+   
+    
+export component SettingDialog inherits Dialog {
+    in-out property <Settings> settings;
+    title: "Settings";
+    z: 100;
+    width: 50%;
+    height: 50%;
+    visible: false;
+
+    Rectangle {
+        border-radius: 16px;
+        background: #1e1e1e;
+        border-width: 1px;
+        border-color: #333;
+        width: 100%;
+        height: 100%;
+        drop-shadow-blur: 24px;
+        drop-shadow-color: #00000088;
+
+        VerticalBox {
+            height: 100%;
+            width: 100%;
+            padding: 16px;
+            spacing: 50px;
+
+            GroupBox {
+                height: 50px;
+                title: "Music directory";
+
+                HorizontalLayout {
+                    height: 50px;
+                    spacing: 26px;
+                    LineEdit {
+                        text: root.settings.save-directory;
+                        enabled: false;
+                    }
+    
+                    Rectangle {
+                        border-radius: 16px;
+                        height: 50px;
+                        width: 50px;
+                        background: #ffff;
+
+                        Image {
+                            height: 20px;
+                            width: 20px;
+                            source: @image-url("../assets/icon-plus.svg");
+                        }
+
+                        add-new-path := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                AppLogic.open_directory_selection()
+                            }
+                        }
+                    }
+                }
+
+            }
+
+            GroupBox {
+                height: 50px;
+                title: "Choose the maximum concurrent downloads";
+
+                ComboBox {
+                    width: 120px;
+                    height: 40px;
+                    model: [1, 2, 3, 4, 5, 6];
+                    current-value: root.settings.max-concurrent-download;
+                    selected(current-value) => {
+                        root.settings.max-concurrent-download = current-value.to-float();
+                    }
+                }
+            }
+
+            GroupBox {
+                height: 50px;
+                title: "Choose your codec";
+
+                ComboBox {
+                    width: 120px;
+                    height: 40px;
+                    model: ["mp3", "flac", "wav", "aac", "ogg"];
+                    current-value: root.settings.codec;
+                    selected(current-value) => {
+                        root.settings.codec = current-value;
+                    }
+                }
+            }
+
+            HorizontalBox {
+                width: 100%;
+                Button {
+                    height: 40px;
+                    width: 120px;
+                    text: "Save";
+                    clicked => {
+                        AppLogic.update_settings(root.settings);
+                        root.visible = false;
+                    }
+                }
+
+                Button {
+                    height: 40px;
+                    width: 120px;
+                    text: "Cancel";
+                    clicked => {
+                        root.visible = false;
+                    }
+                }
+            }
+        }
+    }
+}

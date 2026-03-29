@@ -2,6 +2,7 @@ use crate::dowloaders::dowloader_base::DownloaderBase;
 use crate::enums::codec::CodecPreference;
 use crate::events::download_events::CustomDownloadEvent;
 use async_trait::async_trait;
+use sanitize_filename::sanitize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
@@ -9,7 +10,6 @@ use tokio::process::Command;
 use tokio::sync::mpsc;
 use yt_dlp::Downloader;
 use yt_dlp::events::{DownloadEvent, EventFilter, EventHook, HookResult};
-use sanitize_filename::sanitize;
 use yt_dlp::prelude::Error;
 
 pub struct MusicDownloader {
@@ -18,9 +18,7 @@ pub struct MusicDownloader {
 
 impl MusicDownloader {
     pub fn new(downloader_base: DownloaderBase) -> Self {
-        Self {
-            downloader_base,
-        }
+        Self { downloader_base }
     }
 
     pub async fn download_tools(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -52,9 +50,14 @@ impl MusicDownloader {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let _permit = self.downloader_base.semaphore.acquire().await?;
 
+        let output_dir = match &self.downloader_base.output_dir {
+            Some(dir) => dir.clone(),
+            None => self.downloader_base.config.lock().await.saved_directory.clone().unwrap_or_else(|| PathBuf::from("output")),
+        };
+
         let mut downloader = Downloader::builder(
             self.downloader_base.libraries.clone(),
-            self.downloader_base.output_dir.clone(),
+            output_dir.clone(),
         )
         .build()
         .await?;
@@ -66,8 +69,8 @@ impl MusicDownloader {
         if self
             .check_if_music_already_exists(
                 sanitize(&video_infos.title).as_str(),
-                &self.downloader_base.output_dir,
-                &self.downloader_base.codec_preference.to_string(),
+                &output_dir.clone(),
+                &self.downloader_base.config.lock().await.codec.to_string(),
             )
             .await
         {
@@ -75,7 +78,8 @@ impl MusicDownloader {
             return Ok(());
         }
 
-        let hook: MusicDownloadEvent = MusicDownloadEvent::new(Arc::clone(&event_tx), sanitize(video_infos.title.clone()));
+        let hook: MusicDownloadEvent =
+            MusicDownloadEvent::new(Arc::clone(&event_tx), sanitize(video_infos.title.clone()));
         downloader.register_hook(hook.clone()).await;
 
         let downloader: Arc<Downloader> = Arc::new(downloader);
@@ -98,53 +102,56 @@ impl MusicDownloader {
         let ouput_result: Result<PathBuf, yt_dlp::prelude::Error> = downloader
             .download(&video_infos, output_path.clone())
             .audio_quality(yt_dlp::model::AudioQuality::Best)
-            .audio_codec(self.downloader_base.codec_preference.to_yt_dlp_codec())
             .execute_audio_stream()
             .await;
 
         match ouput_result {
             Ok(_) => println!(""),
-            Err(err ) => {
+            Err(err) => {
                 match err {
-                    Error::FormatNotAvailable {format_type, available_formats, ..} => {
+                    Error::FormatNotAvailable {
+                        format_type,
+                        available_formats,
+                        ..
+                    } => {
                         println!("Download failed. format Type : {:?}", format_type);
                         println!("available formats: {:?}", available_formats);
                         let _: Result<PathBuf, yt_dlp::prelude::Error> = downloader
-                        .download(&video_infos, output_path)
-                        .audio_quality(yt_dlp::model::AudioQuality::Best)
-                        .audio_codec(self.downloader_base.codec_preference.to_yt_dlp_codec())
-                        .execute_audio_stream()
-                        .await;
-                    },
+                            .download(&video_infos, output_path)
+                            .audio_quality(yt_dlp::model::AudioQuality::Best)
+                            .execute_audio_stream()
+                            .await;
+                    }
                     _ => {}
-
                 };
             }
         }
 
-        self.convert_audio(sanitize(video_infos.title).as_str()).await?;
+        self.convert_audio(sanitize(video_infos.title).as_str(), &output_dir)
+            .await?;
 
         println!("Download completed for URL: {}", url);
 
         Ok(())
     }
 
-    async fn convert_audio(&self, audio_title: &str) -> Result<(), String> {
-        let input = self
-            .downloader_base
-            .output_dir
+    async fn convert_audio(&self, audio_title: &str, output_dir: &PathBuf) -> Result<(), String> {
+        let input = output_dir
             .join(format!("{}.webm", audio_title));
-        let output = self.downloader_base.output_dir.join(format!(
+        let output = output_dir.join(format!(
             "{}.{}",
             audio_title,
             self.downloader_base
-                .codec_preference
+                .config
+                .lock()
+                .await
+                .codec
                 .to_string()
                 .to_lowercase()
         ));
 
         println!("Converting audio from {:?} to {:?}", input, output);
-        let ffmpeg_args = match self.downloader_base.codec_preference {
+        let ffmpeg_args = match self.downloader_base.config.lock().await.codec {
             CodecPreference::MP3 => vec![
                 "-loglevel",
                 "error",

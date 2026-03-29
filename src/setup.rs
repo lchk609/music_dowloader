@@ -1,17 +1,19 @@
 use crate::config::config::Config;
 use crate::dowloaders::dowloader_base::DownloaderBase;
 use crate::dowloaders::music::MusicDownloader;
+use crate::enums::codec::CodecPreference;
 use crate::events::download_events::CustomDownloadEvent;
 use crate::ui::components::song_item::ItemManagement;
 use crate::ui::components::{download_button, playlist};
-use crate::{App, Playlist, Song};
-use slint::{Model, ModelRc, SharedString, ToSharedString, VecModel};
+use crate::{App, AppLogic, Playlist, Settings, Song};
+use rfd::FileDialog;
+use slint::{ComponentHandle, Model, ModelRc, SharedString, ToSharedString, VecModel, Weak};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
-use tokio::sync::{Mutex, Semaphore};
 use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::{Mutex, Semaphore};
 use yt_dlp::client::Libraries;
 
 struct MusicFile {
@@ -79,14 +81,14 @@ async fn collect_music_files(dir: PathBuf) -> Result<Vec<MusicFile>, Box<dyn std
 
 async fn load_playlists_on_opening(
     app: Arc<App>,
-    config: &Config,
+    config: Arc<Config>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut playlists: Vec<Playlist> = Vec::new();
 
     for playlist_info in config.playlists.iter() {
         playlists.push(Playlist {
             id: playlist_info.id.to_shared_string(),
-            title: playlist_info.name.to_shared_string(),   
+            title: playlist_info.name.to_shared_string(),
         });
     }
 
@@ -103,13 +105,62 @@ async fn setup_event_listiners(
 
     ItemManagement::new(rx).start_listening(Arc::clone(&app));
 
-    let tx_arc = Arc::new(tx);
+    let tx_arc: Arc<tokio::sync::mpsc::UnboundedSender<CustomDownloadEvent>> = Arc::new(tx);
 
-    let download_button =
-        download_button::DownloadButton::new(Arc::clone(&app), downloader_base.clone(), Arc::clone(&tx_arc));
+    let download_button: download_button::DownloadButton = download_button::DownloadButton::new(
+        Arc::clone(&app),
+        downloader_base.clone(),
+        Arc::clone(&tx_arc),
+    );
     download_button.manage_add_music().await;
-    let playlist = playlist::Playlists::new(Arc::clone(&app), downloader_base.clone(), Arc::clone(&tx_arc)).await;
+    let playlist: playlist::Playlists = playlist::Playlists::new(
+        Arc::clone(&app),
+        downloader_base.clone(),
+        Arc::clone(&tx_arc),
+    )
+    .await;
     playlist.manage_playlist().await;
+
+    app.global::<AppLogic>()
+        .on_update_settings(move |settings| {
+            tokio::spawn({
+                let downloader_base = downloader_base.clone();
+                async move {
+                    let mut config: tokio::sync::MutexGuard<'_, Config> =
+                        downloader_base.config.lock().await;
+                    config.codec = CodecPreference::to_codec(&settings.codec);
+                    config.saved_directory =
+                        Some(PathBuf::from(settings.save_directory.to_string()));
+                    config.max_concurrent_downloads = settings.max_concurrent_download;
+                    let _ = config.save().await;
+                }
+            });
+        });
+
+    app.global::<AppLogic>().on_open_directory_selection({
+        let app_weak: Weak<App> = app.as_weak();
+        move || {
+            let user_home: PathBuf = match directories::UserDirs::new() {
+                Some(path_home) => path_home.home_dir().to_path_buf(),
+                None => {
+                    eprintln!("Impossible de trouver le répertoire utilisateur.");
+                    PathBuf::new()
+                }
+            };
+            let folder = FileDialog::new()
+                //.add_filter("Excel", &["xls", "xlsx"])
+                .set_directory(user_home)
+                .pick_folder();
+
+            if let Some(path) = folder {
+                if let Some(app_weak) = app_weak.upgrade() {
+                    let mut settings: Settings = app_weak.get_settings();
+                    settings.save_directory = path.to_string_lossy().to_shared_string();
+                    app_weak.set_settings(settings);
+                }
+            }
+        }
+    });
     Ok(())
 }
 
@@ -117,45 +168,74 @@ pub async fn setup_gui(
     app: Arc<App>,
     downloader_base: DownloaderBase,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config: Config = Config::load().await?;
+    let config: Arc<Config> = Arc::new(Config::load().await?);
 
     let music_path: PathBuf = match config.saved_directory.clone() {
         Some(saved_directory) => saved_directory,
         None => PathBuf::new(),
     };
 
-    get_or_create_output_dir(music_path.to_string_lossy().to_string(), &config).await?;
+    get_or_create_output_dir(
+        music_path.to_string_lossy().to_string(),
+        Arc::clone(&config),
+    )
+    .await?;
+    load_config_in_ui(Arc::clone(&app), Arc::clone(&config)).await?;
 
     load_music_on_opening(Arc::clone(&app), music_path).await?;
-    load_playlists_on_opening(Arc::clone(&app), &config).await?;
+    load_playlists_on_opening(Arc::clone(&app), Arc::clone(&config)).await?;
     setup_event_listiners(Arc::clone(&app), downloader_base).await?;
 
     Ok(())
 }
 
+async fn load_config_in_ui(
+    app: Arc<App>,
+    config: Arc<Config>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(save_directory) = config.saved_directory.clone() else {
+        return Ok(());
+    };
+    let settings: Settings = Settings {
+        save_directory: save_directory
+            .to_string_lossy()
+            .to_string()
+            .to_shared_string(),
+        codec: config.codec.clone().to_string().to_shared_string(),
+        max_concurrent_download: config.max_concurrent_downloads,
+    };
+
+    app.set_settings(settings.into());
+
+    Ok(())
+}
+
 pub async fn setup_dowloader() -> Result<DownloaderBase, Box<dyn std::error::Error>> {
-    let config: Config = Config::load().await?;
+    let config: Arc<Config> = Arc::new(Config::load().await?);
 
     let output_dir: PathBuf = match config.saved_directory.clone() {
         Some(saved_directory) => saved_directory,
         None => PathBuf::new(),
     };
 
-    get_or_create_output_dir(output_dir.to_string_lossy().to_string(), &config).await?;
+    get_or_create_output_dir(
+        output_dir.to_string_lossy().to_string(),
+        Arc::clone(&config),
+    )
+    .await?;
 
-    let libraries_dir = PathBuf::from("libs");
+    let libraries_dir: PathBuf = PathBuf::from("libs");
 
-    let youtube = libraries_dir.join("yt-dlp");
-    let ffmpeg = libraries_dir.join("ffmpeg");
+    let youtube: PathBuf = libraries_dir.join("yt-dlp");
+    let ffmpeg: PathBuf = libraries_dir.join("ffmpeg");
 
-    let libraries = Libraries::new(youtube, ffmpeg);
+    let libraries: Libraries = Libraries::new(youtube, ffmpeg);
 
     let downlader_base = DownloaderBase {
         libraries,
-        codec_preference: config.codec,
-        output_dir,
-        semaphore: Arc::new(Semaphore::new(config.max_concurrent_downloads)),
-        config: Arc::new(Mutex::new(Config::load().await.unwrap_or_default()))
+        output_dir : None,
+        semaphore: Arc::new(Semaphore::new(config.max_concurrent_downloads as usize)),
+        config: Arc::new(Mutex::new(config.as_ref().clone())),
     };
 
     let music_downloader: MusicDownloader = MusicDownloader::new(downlader_base.clone());
@@ -165,7 +245,7 @@ pub async fn setup_dowloader() -> Result<DownloaderBase, Box<dyn std::error::Err
 
 async fn get_or_create_output_dir(
     mut path: String,
-    config: &Config,
+    config: Arc<Config>,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let user_home: PathBuf = match directories::UserDirs::new() {
         Some(path_home) => path_home.home_dir().to_path_buf(),
@@ -186,7 +266,7 @@ async fn get_or_create_output_dir(
 
     Config {
         saved_directory: Some(output_dir.clone()),
-        ..config.clone()
+        ..(*config).clone()
     }
     .save()
     .await?;

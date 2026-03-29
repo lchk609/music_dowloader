@@ -23,13 +23,14 @@ impl ToString for CodecPreference {
 }
 
 impl CodecPreference {
-    pub fn to_yt_dlp_codec(&self) -> yt_dlp::model::AudioCodecPreference {
-        match self {
-            CodecPreference::FLAC => yt_dlp::model::AudioCodecPreference::Custom("flac".into()),
-            CodecPreference::MP3 => yt_dlp::model::AudioCodecPreference::MP3,
-            CodecPreference::AAC => yt_dlp::model::AudioCodecPreference::AAC,
-            CodecPreference::WAV => yt_dlp::model::AudioCodecPreference::Custom("wav".into()),
-            CodecPreference::OGG => yt_dlp::model::AudioCodecPreference::Custom("ogg".into()),
+    pub fn to_codec(string: &str) -> CodecPreference {
+        match string {
+            "flac" => CodecPreference::FLAC,
+            "mp3" => CodecPreference::MP3,
+            "aac" => CodecPreference::AAC,
+            "wav" => CodecPreference::WAV,
+            "ogg" => CodecPreference::OGG,
+            _ => CodecPreference::MP3,
         }
     }
 }

@@ -5,13 +5,13 @@ import {
     Button,
     HorizontalBox,
 } from "std-widgets.slint";
+import { AppLogic } from "../globals/callbacks.slint";
 export component AddPlaylist inherits Dialog {
     in-out property <string> playlist-url: "";
     in-out property <string> playlist-name: "";
 
-    callback add_playlist(string, string);
-
     visible: false;
+    z: 100;
 
     Rectangle {
         border-radius: 16px;
@@ -76,7 +76,7 @@ export component AddPlaylist inherits Dialog {
                     height: 40px;
                     clicked => {
                         if (root.playlist-name != "" && root.playlist-url != "") {
-                            root.add_playlist(root.playlist-name, root.playlist-url);
+                            AppLogic.add_playlist(root.playlist-name, root.playlist-url);
                             root.visible = false;
                         } else {
                             playlist-url-error.visible = root.playlist-url == "";

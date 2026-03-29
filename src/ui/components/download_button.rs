@@ -1,4 +1,5 @@
 use crate::App;
+use crate::AppLogic;
 use crate::MusicDownloader;
 use crate::dowloaders::dowloader_base::DownloaderBase;
 use crate::events::download_events::CustomDownloadEvent;
@@ -29,7 +30,7 @@ impl DownloadButton {
 
     pub async fn manage_add_music(&self) {
         if let Some(app) = self.app.upgrade() {
-            app.on_download_clicked({
+            app.global::<AppLogic>().on_download_clicked({
                 let music_downloader = Arc::clone(&self.music_downloader);
                 let tx = self.tx.clone();
                 move |url: SharedString| {

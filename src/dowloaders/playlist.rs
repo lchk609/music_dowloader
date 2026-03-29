@@ -25,11 +25,11 @@ impl PlaylistDownloader {
         playlist_url: &str,
         playlist_name: &str,
         event_tx: Arc<mpsc::UnboundedSender<CustomDownloadEvent>>,
-        concurrency: usize
+        concurrency: i32,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let downloader = Downloader::builder(
             self.downloader_base.libraries.clone(),
-            self.downloader_base.output_dir.clone(),
+            self.downloader_base.config.lock().await.saved_directory.clone().unwrap_or_else(|| PathBuf::from("output")),
         )
         .build()
         .await?;
@@ -38,10 +38,10 @@ impl PlaylistDownloader {
 
         let playlist_infos: Playlist = downloader.fetch_playlist_infos(playlist_url).await?;
 
-        let output_dir: PathBuf = self.downloader_base.output_dir.clone().join(playlist_name);
+        let output_dir: PathBuf = self.downloader_base.config.lock().await.saved_directory.clone().unwrap_or_else(|| PathBuf::from("output")).join(playlist_name);
         let downloader_base: DownloaderBase = self.downloader_base.clone();
         let new_dowloader_base: DownloaderBase = DownloaderBase {
-            output_dir,
+            output_dir: Some(output_dir),
             ..downloader_base
         };
 
@@ -61,7 +61,7 @@ impl PlaylistDownloader {
                     }
                 }
             })
-            .buffer_unordered(concurrency)
+            .buffer_unordered(concurrency as usize)
             .collect::<Vec<_>>()
             .await;
 
@@ -77,8 +77,13 @@ impl PlaylistDownloader {
             self.downloader_base.config.lock().await;
 
         if let Some(playlist) = config.playlists.iter().find(|item| item.id == playlist_id) {
-            self.download_playlist(&playlist.url, &playlist.name, event_tx, config.max_concurrent_downloads)
-                .await?;
+            self.download_playlist(
+                &playlist.url,
+                &playlist.name,
+                event_tx,
+                config.max_concurrent_downloads,
+            )
+            .await?;
         };
 
         Ok(())
