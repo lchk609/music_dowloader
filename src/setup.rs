@@ -1,17 +1,18 @@
 use crate::config::config::Config;
 use crate::dowloaders::dowloader_base::DownloaderBase;
 use crate::dowloaders::music::MusicDownloader;
+use crate::enums::codec::CodecPreference;
 use crate::events::download_events::CustomDownloadEvent;
 use crate::ui::components::song_item::ItemManagement;
 use crate::ui::components::{download_button, playlist};
-use crate::{App, Playlist, Song, Settings};
-use slint::{Model, ModelRc, SharedString, ToSharedString, VecModel};
+use crate::{App, AppLogic, Playlist, Settings, Song};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, ToSharedString, VecModel};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
-use tokio::sync::{Mutex, Semaphore};
 use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::{Mutex, Semaphore};
 use yt_dlp::client::Libraries;
 
 struct MusicFile {
@@ -86,7 +87,7 @@ async fn load_playlists_on_opening(
     for playlist_info in config.playlists.iter() {
         playlists.push(Playlist {
             id: playlist_info.id.to_shared_string(),
-            title: playlist_info.name.to_shared_string(),   
+            title: playlist_info.name.to_shared_string(),
         });
     }
 
@@ -103,13 +104,35 @@ async fn setup_event_listiners(
 
     ItemManagement::new(rx).start_listening(Arc::clone(&app));
 
-    let tx_arc = Arc::new(tx);
+    let tx_arc: Arc<tokio::sync::mpsc::UnboundedSender<CustomDownloadEvent>> = Arc::new(tx);
 
-    let download_button =
-        download_button::DownloadButton::new(Arc::clone(&app), downloader_base.clone(), Arc::clone(&tx_arc));
+    let download_button: download_button::DownloadButton = download_button::DownloadButton::new(
+        Arc::clone(&app),
+        downloader_base.clone(),
+        Arc::clone(&tx_arc),
+    );
     download_button.manage_add_music().await;
-    let playlist = playlist::Playlists::new(Arc::clone(&app), downloader_base.clone(), Arc::clone(&tx_arc)).await;
+    let playlist: playlist::Playlists = playlist::Playlists::new(
+        Arc::clone(&app),
+        downloader_base.clone(),
+        Arc::clone(&tx_arc),
+    )
+    .await;
     playlist.manage_playlist().await;
+
+    app.global::<AppLogic>()
+        .on_update_settings(move |settings| {
+            tokio::spawn({
+                let downloader_base = downloader_base.clone();
+                async move {
+                let mut config: tokio::sync::MutexGuard<'_, Config> = downloader_base.config.lock().await;
+                config.codec = CodecPreference::to_codec(&settings.codec);
+                config.saved_directory = Some(PathBuf::from(settings.save_directory.to_string()));
+                config.max_concurrent_downloads = settings.max_concurrent_download;
+                let _ = config.save().await;
+                }
+            });
+        });
     Ok(())
 }
 
@@ -117,14 +140,18 @@ pub async fn setup_gui(
     app: Arc<App>,
     downloader_base: DownloaderBase,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config:Arc<Config>  = Arc::new(Config::load().await?);
+    let config: Arc<Config> = Arc::new(Config::load().await?);
 
     let music_path: PathBuf = match config.saved_directory.clone() {
         Some(saved_directory) => saved_directory,
         None => PathBuf::new(),
     };
 
-    get_or_create_output_dir(music_path.to_string_lossy().to_string(), Arc::clone(&config)).await?;
+    get_or_create_output_dir(
+        music_path.to_string_lossy().to_string(),
+        Arc::clone(&config),
+    )
+    .await?;
     load_config_in_ui(Arc::clone(&app), Arc::clone(&config)).await?;
 
     load_music_on_opening(Arc::clone(&app), music_path).await?;
@@ -134,12 +161,18 @@ pub async fn setup_gui(
     Ok(())
 }
 
-async fn load_config_in_ui(app: Arc<App>, config: Arc<Config>) -> Result<(), Box<dyn std::error::Error>> {
+async fn load_config_in_ui(
+    app: Arc<App>,
+    config: Arc<Config>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let Some(save_directory) = config.saved_directory.clone() else {
         return Ok(());
     };
     let settings: Settings = Settings {
-        save_directory: save_directory.to_string_lossy().to_string().to_shared_string(),
+        save_directory: save_directory
+            .to_string_lossy()
+            .to_string()
+            .to_shared_string(),
         codec: config.codec.clone().to_string().to_shared_string(),
         max_concurrent_download: config.max_concurrent_downloads,
     };
@@ -157,21 +190,25 @@ pub async fn setup_dowloader() -> Result<DownloaderBase, Box<dyn std::error::Err
         None => PathBuf::new(),
     };
 
-    get_or_create_output_dir(output_dir.to_string_lossy().to_string(), Arc::clone(&config)).await?;
+    get_or_create_output_dir(
+        output_dir.to_string_lossy().to_string(),
+        Arc::clone(&config),
+    )
+    .await?;
 
-    let libraries_dir = PathBuf::from("libs");
+    let libraries_dir: PathBuf = PathBuf::from("libs");
 
-    let youtube = libraries_dir.join("yt-dlp");
-    let ffmpeg = libraries_dir.join("ffmpeg");
+    let youtube: PathBuf = libraries_dir.join("yt-dlp");
+    let ffmpeg: PathBuf = libraries_dir.join("ffmpeg");
 
-    let libraries = Libraries::new(youtube, ffmpeg);
+    let libraries: Libraries = Libraries::new(youtube, ffmpeg);
 
     let downlader_base = DownloaderBase {
         libraries,
         codec_preference: config.codec.clone(),
         output_dir,
         semaphore: Arc::new(Semaphore::new(config.max_concurrent_downloads as usize)),
-        config: Arc::new(Mutex::new(Config::load().await.unwrap_or_default()))
+        config: Arc::new(Mutex::new(config.as_ref().clone())),
     };
 
     let music_downloader: MusicDownloader = MusicDownloader::new(downlader_base.clone());

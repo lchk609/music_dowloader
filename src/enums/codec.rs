@@ -32,4 +32,15 @@ impl CodecPreference {
             CodecPreference::OGG => yt_dlp::model::AudioCodecPreference::Custom("ogg".into()),
         }
     }
+
+    pub fn to_codec(string: &str) -> CodecPreference {
+        match string {
+            "flac" => CodecPreference::FLAC,
+            "mp3" => CodecPreference::MP3,
+            "aac" => CodecPreference::AAC,
+            "wav" => CodecPreference::WAV,
+            "ogg" => CodecPreference::OGG,
+            _ => CodecPreference::MP3,
+        }
+    }
 }

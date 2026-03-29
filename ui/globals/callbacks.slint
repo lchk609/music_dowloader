@@ -1,3 +1,5 @@
+import { Settings } from "../structs/settings.slint";
+
 export global AppLogic {
     pure callback refresh_playlist(string);
     pure callback delete_playlist(string);
@@ -5,4 +7,5 @@ export global AppLogic {
     pure callback add_playlist(string, string);
     pure callback download_clicked(string);
     pure callback open_directory_selection();
+    pure callback update_settings(Settings);
 }

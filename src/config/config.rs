@@ -84,6 +84,7 @@ impl Config {
     }
 }
 
+
 async fn save_config(
     config: &Config,
     path: &std::path::Path,

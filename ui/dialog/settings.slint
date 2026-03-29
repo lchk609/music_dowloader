@@ -36,9 +36,7 @@ export component SettingDialog inherits Dialog {
 
             GroupBox {
                 height: 50px;
-                // width: 100%;
                 title: "Music directory";
-                // row: 0;
 
                 HorizontalLayout {
                     height: 50px;
@@ -74,7 +72,6 @@ export component SettingDialog inherits Dialog {
             GroupBox {
                 height: 50px;
                 title: "Choose the maximum concurrent downloads";
-                // row: 1;
 
                 ComboBox {
                     width: 120px;
@@ -90,7 +87,6 @@ export component SettingDialog inherits Dialog {
             GroupBox {
                 height: 50px;
                 title: "Choose your codec";
-                // row: 2;
 
                 ComboBox {
                     width: 120px;
@@ -105,12 +101,12 @@ export component SettingDialog inherits Dialog {
 
             HorizontalBox {
                 width: 100%;
-                // row: 3;
                 Button {
                     height: 40px;
                     width: 120px;
                     text: "Save";
                     clicked => {
+                        AppLogic.update_settings(root.settings);
                         root.visible = false;
                     }
                 }
