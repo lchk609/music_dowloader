@@ -233,7 +233,6 @@ pub async fn setup_dowloader() -> Result<DownloaderBase, Box<dyn std::error::Err
 
     let downlader_base = DownloaderBase {
         libraries,
-        codec_preference: config.codec.clone(),
         output_dir,
         semaphore: Arc::new(Semaphore::new(config.max_concurrent_downloads as usize)),
         config: Arc::new(Mutex::new(config.as_ref().clone())),

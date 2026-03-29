@@ -29,7 +29,7 @@ impl PlaylistDownloader {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let downloader = Downloader::builder(
             self.downloader_base.libraries.clone(),
-            self.downloader_base.output_dir.clone(),
+            self.downloader_base.config.lock().await.saved_directory.clone().unwrap_or_else(|| PathBuf::from("output")),
         )
         .build()
         .await?;
@@ -38,7 +38,7 @@ impl PlaylistDownloader {
 
         let playlist_infos: Playlist = downloader.fetch_playlist_infos(playlist_url).await?;
 
-        let output_dir: PathBuf = self.downloader_base.output_dir.clone().join(playlist_name);
+        let output_dir: PathBuf = self.downloader_base.config.lock().await.saved_directory.clone().unwrap_or_else(|| PathBuf::from("output")).join(playlist_name);
         let downloader_base: DownloaderBase = self.downloader_base.clone();
         let new_dowloader_base: DownloaderBase = DownloaderBase {
             output_dir,

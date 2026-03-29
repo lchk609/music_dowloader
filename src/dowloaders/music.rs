@@ -65,7 +65,7 @@ impl MusicDownloader {
             .check_if_music_already_exists(
                 sanitize(&video_infos.title).as_str(),
                 &self.downloader_base.output_dir,
-                &self.downloader_base.codec_preference.to_string(),
+                &self.downloader_base.config.lock().await.codec.to_string(),
             )
             .await
         {
@@ -114,7 +114,6 @@ impl MusicDownloader {
                         let _: Result<PathBuf, yt_dlp::prelude::Error> = downloader
                             .download(&video_infos, output_path)
                             .audio_quality(yt_dlp::model::AudioQuality::Best)
-                            .audio_codec(self.downloader_base.codec_preference.to_yt_dlp_codec())
                             .execute_audio_stream()
                             .await;
                     }
@@ -149,7 +148,7 @@ impl MusicDownloader {
         ));
 
         println!("Converting audio from {:?} to {:?}", input, output);
-        let ffmpeg_args = match self.downloader_base.codec_preference {
+        let ffmpeg_args = match self.downloader_base.config.lock().await.codec {
             CodecPreference::MP3 => vec![
                 "-loglevel",
                 "error",
