@@ -12,6 +12,7 @@ import { SettingDialog } from "dialog/settings.slint";
 import { Playlist } from "structs/playlist.slint";
 import { AppLogic } from "globals/callbacks.slint";
 import { DialogType } from "enums/dialog-type.slint";
+import { Settings } from "structs/settings.slint";
 
 export component App inherits Window {
     preferred-width: 1000px;
@@ -22,11 +23,12 @@ export component App inherits Window {
     in-out property <string> url: "";
     in-out property <[Playlist]> playlists: [];
     in-out property <[Song]> songs: [];
+    in-out property <Settings> settings;
     callback open_dialog(DialogType);
 
     add-playlist-popup := AddPlaylist { }
 
-    setting-dialog := SettingDialog { }
+    setting-dialog := SettingDialog { settings: settings; }
 
     open_dialog(dialog) => {
         if (dialog == DialogType.Settings) {

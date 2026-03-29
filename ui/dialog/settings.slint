@@ -95,7 +95,7 @@ export component SettingDialog inherits Dialog {
                 ComboBox {
                     width: 120px;
                     height: 40px;
-                    model: ["MP3", "FLAC", "WAV", "AAC", "OGG"];
+                    model: ["mp3", "flac", "wav", "aac", "ogg"];
                     current-value: root.settings.codec;
                     selected(current-value) => {
                         root.settings.codec = current-value;

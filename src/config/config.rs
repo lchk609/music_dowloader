@@ -12,7 +12,7 @@ pub struct Config {
     pub saved_directory: Option<PathBuf>,
     pub playlists: Vec<PlaylistInfo>,
     pub codec: CodecPreference,
-    pub max_concurrent_downloads: usize,
+    pub max_concurrent_downloads: i32,
 }
 
 #[derive(Serialize, Debug, Deserialize, Clone, Default)]

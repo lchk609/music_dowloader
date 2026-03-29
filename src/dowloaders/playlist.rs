@@ -25,7 +25,7 @@ impl PlaylistDownloader {
         playlist_url: &str,
         playlist_name: &str,
         event_tx: Arc<mpsc::UnboundedSender<CustomDownloadEvent>>,
-        concurrency: usize
+        concurrency: i32,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let downloader = Downloader::builder(
             self.downloader_base.libraries.clone(),
@@ -61,7 +61,7 @@ impl PlaylistDownloader {
                     }
                 }
             })
-            .buffer_unordered(concurrency)
+            .buffer_unordered(concurrency as usize)
             .collect::<Vec<_>>()
             .await;
 
@@ -77,8 +77,13 @@ impl PlaylistDownloader {
             self.downloader_base.config.lock().await;
 
         if let Some(playlist) = config.playlists.iter().find(|item| item.id == playlist_id) {
-            self.download_playlist(&playlist.url, &playlist.name, event_tx, config.max_concurrent_downloads)
-                .await?;
+            self.download_playlist(
+                &playlist.url,
+                &playlist.name,
+                event_tx,
+                config.max_concurrent_downloads,
+            )
+            .await?;
         };
 
         Ok(())
