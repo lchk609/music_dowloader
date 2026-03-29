@@ -7,7 +7,7 @@ use crate::{config::config::Config};
 #[derive(Clone, Debug)]
 pub struct DownloaderBase {
     pub libraries: Libraries,
-    pub output_dir: PathBuf,
+    pub output_dir: Option<PathBuf>,
     pub semaphore: Arc<Semaphore>,
     pub config: Arc<Mutex<Config>>,
 }

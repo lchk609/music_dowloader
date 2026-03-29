@@ -50,9 +50,14 @@ impl MusicDownloader {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let _permit = self.downloader_base.semaphore.acquire().await?;
 
+        let output_dir = match &self.downloader_base.output_dir {
+            Some(dir) => dir.clone(),
+            None => self.downloader_base.config.lock().await.saved_directory.clone().unwrap_or_else(|| PathBuf::from("output")),
+        };
+
         let mut downloader = Downloader::builder(
             self.downloader_base.libraries.clone(),
-            self.downloader_base.output_dir.clone(),
+            output_dir.clone(),
         )
         .build()
         .await?;
@@ -64,7 +69,7 @@ impl MusicDownloader {
         if self
             .check_if_music_already_exists(
                 sanitize(&video_infos.title).as_str(),
-                &self.downloader_base.output_dir,
+                &output_dir.clone(),
                 &self.downloader_base.config.lock().await.codec.to_string(),
             )
             .await
@@ -122,7 +127,7 @@ impl MusicDownloader {
             }
         }
 
-        self.convert_audio(sanitize(video_infos.title).as_str())
+        self.convert_audio(sanitize(video_infos.title).as_str(), &output_dir)
             .await?;
 
         println!("Download completed for URL: {}", url);
@@ -130,12 +135,10 @@ impl MusicDownloader {
         Ok(())
     }
 
-    async fn convert_audio(&self, audio_title: &str) -> Result<(), String> {
-        let input = self
-            .downloader_base
-            .output_dir
+    async fn convert_audio(&self, audio_title: &str, output_dir: &PathBuf) -> Result<(), String> {
+        let input = output_dir
             .join(format!("{}.webm", audio_title));
-        let output = self.downloader_base.output_dir.join(format!(
+        let output = output_dir.join(format!(
             "{}.{}",
             audio_title,
             self.downloader_base

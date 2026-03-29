@@ -41,7 +41,7 @@ impl PlaylistDownloader {
         let output_dir: PathBuf = self.downloader_base.config.lock().await.saved_directory.clone().unwrap_or_else(|| PathBuf::from("output")).join(playlist_name);
         let downloader_base: DownloaderBase = self.downloader_base.clone();
         let new_dowloader_base: DownloaderBase = DownloaderBase {
-            output_dir,
+            output_dir: Some(output_dir),
             ..downloader_base
         };
 
