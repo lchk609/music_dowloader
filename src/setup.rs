@@ -6,7 +6,8 @@ use crate::events::download_events::CustomDownloadEvent;
 use crate::ui::components::song_item::ItemManagement;
 use crate::ui::components::{download_button, playlist};
 use crate::{App, AppLogic, Playlist, Settings, Song};
-use slint::{ComponentHandle, Model, ModelRc, SharedString, ToSharedString, VecModel};
+use rfd::FileDialog;
+use slint::{ComponentHandle, Model, ModelRc, SharedString, ToSharedString, VecModel, Weak};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -125,14 +126,41 @@ async fn setup_event_listiners(
             tokio::spawn({
                 let downloader_base = downloader_base.clone();
                 async move {
-                let mut config: tokio::sync::MutexGuard<'_, Config> = downloader_base.config.lock().await;
-                config.codec = CodecPreference::to_codec(&settings.codec);
-                config.saved_directory = Some(PathBuf::from(settings.save_directory.to_string()));
-                config.max_concurrent_downloads = settings.max_concurrent_download;
-                let _ = config.save().await;
+                    let mut config: tokio::sync::MutexGuard<'_, Config> =
+                        downloader_base.config.lock().await;
+                    config.codec = CodecPreference::to_codec(&settings.codec);
+                    config.saved_directory =
+                        Some(PathBuf::from(settings.save_directory.to_string()));
+                    config.max_concurrent_downloads = settings.max_concurrent_download;
+                    let _ = config.save().await;
                 }
             });
         });
+
+    app.global::<AppLogic>().on_open_directory_selection({
+        let app_weak: Weak<App> = app.as_weak();
+        move || {
+            let user_home: PathBuf = match directories::UserDirs::new() {
+                Some(path_home) => path_home.home_dir().to_path_buf(),
+                None => {
+                    eprintln!("Impossible de trouver le répertoire utilisateur.");
+                    PathBuf::new()
+                }
+            };
+            let folder = FileDialog::new()
+                //.add_filter("Excel", &["xls", "xlsx"])
+                .set_directory(user_home)
+                .pick_folder();
+
+            if let Some(path) = folder {
+                if let Some(app_weak) = app_weak.upgrade() {
+                    let mut settings: Settings = app_weak.get_settings();
+                    settings.save_directory = path.to_string_lossy().to_shared_string();
+                    app_weak.set_settings(settings);
+                }
+            }
+        }
+    });
     Ok(())
 }
 

@@ -24,7 +24,7 @@ impl Playlists {
         downloader_base: DownloaderBase,
         tx: Arc<UnboundedSender<CustomDownloadEvent>>,
     ) -> Self {
-        let playlist_downloader = Arc::new(PlaylistDownloader::new(downloader_base));
+        let playlist_downloader: Arc<PlaylistDownloader> = Arc::new(PlaylistDownloader::new(downloader_base));
         Self {
             app: app,
             playlist_downloader,
@@ -35,17 +35,17 @@ impl Playlists {
 
     pub async fn manage_playlist(&self) {
         if let Some(app) = self.app.as_weak().upgrade() {
-            let tx = Arc::clone(&self.tx);
+            let tx: Arc<UnboundedSender<CustomDownloadEvent>> = Arc::clone(&self.tx);
             app.global::<AppLogic>().on_add_playlist({
                 let playlist_downloader = Arc::clone(&self.playlist_downloader);
-                let app = app.as_weak();
+                let app: Weak<App> = app.as_weak();
                 let shared_config: Arc<Mutex<Config>> = Arc::clone(&self.config);
                 move |playlist_name: SharedString, playlist_url: SharedString| {
-                    let playlist_name_for_config = playlist_name.clone().to_string();
-                    let playlist_url_for_config = playlist_url.clone().to_string();
-                    let playlist_downloader = Arc::clone(&playlist_downloader);
-                    let tx = Arc::clone(&tx);
-                    let app = app.clone();
+                    let playlist_name_for_config: String = playlist_name.clone().to_string();
+                    let playlist_url_for_config: String = playlist_url.clone().to_string();
+                    let playlist_downloader: Arc<PlaylistDownloader> = Arc::clone(&playlist_downloader);
+                    let tx: Arc<UnboundedSender<CustomDownloadEvent>> = Arc::clone(&tx);
+                    let app: Weak<App> = app.clone();
                     let shared_config: Arc<Mutex<Config>> = Arc::clone(&shared_config);
                     tokio::spawn({
                         let shared_config: Arc<Mutex<Config>> = Arc::clone(&shared_config);
@@ -59,7 +59,7 @@ impl Playlists {
                             .await
                         {
                             Ok(uuid) => {
-                                let playlist = Playlist {
+                                let playlist: Playlist = Playlist {
                                     id: uuid.to_shared_string(),
                                     title: SharedString::from(playlist_name_for_config.clone()),
                                 };
